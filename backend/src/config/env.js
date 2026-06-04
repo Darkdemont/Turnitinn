@@ -1,0 +1,37 @@
+const path = require('path');
+const dotenv = require('dotenv');
+
+const backendRoot = path.resolve(__dirname, '../..');
+const projectRoot = path.resolve(backendRoot, '..');
+
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+dotenv.config({ path: path.join(backendRoot, '.env'), override: false });
+dotenv.config({ path: path.join(projectRoot, '.env'), override: false });
+
+function numberFromEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const uploadDir = process.env.UPLOAD_DIR || 'uploads';
+const uploadRoot = path.isAbsolute(uploadDir)
+  ? uploadDir
+  : path.resolve(backendRoot, uploadDir);
+
+module.exports = {
+  nodeEnv: process.env.NODE_ENV || 'development',
+  port: numberFromEnv('PORT', 5000),
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  databaseUrl: process.env.DATABASE_URL,
+  dbHost: process.env.DB_HOST || 'localhost',
+  dbPort: numberFromEnv('DB_PORT', 3306),
+  dbName: process.env.DB_NAME || 'turnit_phase1',
+  dbUser: process.env.DB_USER || 'root',
+  dbPassword: process.env.DB_PASSWORD || '',
+  jwtSecret: process.env.JWT_SECRET || 'development_only_change_me',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  uploadRoot,
+  maxFileSizeMb: numberFromEnv('MAX_FILE_SIZE_MB', 20),
+  maxFilesPerOrder: numberFromEnv('MAX_FILES_PER_ORDER', 20),
+  staffMaxActiveOrders: numberFromEnv('STAFF_MAX_ACTIVE_ORDERS', 3)
+};
