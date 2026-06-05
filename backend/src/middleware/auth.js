@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
-const { query } = require('../config/db');
 const env = require('../config/env');
+const { User } = require('../models');
 const HttpError = require('../utils/httpError');
 
 async function authenticate(req, res, next) {
@@ -12,19 +12,13 @@ async function authenticate(req, res, next) {
     }
 
     const payload = jwt.verify(token, env.jwtSecret);
-    const result = await query(
-      `SELECT id, name, email, phone, role, status
-       FROM users
-       WHERE id = $1`,
-      [payload.sub]
-    );
+    const user = await User.findById(payload.sub).select('name email phone role status');
 
-    const user = result.rows[0];
     if (!user || user.status !== 'active') {
       throw new HttpError(401, 'Account is inactive or no longer exists.');
     }
 
-    req.user = user;
+    req.user = user.toJSON();
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {

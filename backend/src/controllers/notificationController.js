@@ -1,69 +1,41 @@
-const { query } = require('../config/db');
+const { Notification } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
-
-function parseId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, 'Invalid id.');
-  }
-  return id;
-}
+const { parseObjectId, plainMany, plain } = require('../utils/mongo');
 
 const listNotifications = asyncHandler(async (req, res) => {
   const requestedLimit = Number(req.query.limit);
   const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 30, 60);
   const [notifications, unread] = await Promise.all([
-    query(
-      `SELECT id, order_id, type, title, message, link_path, read_at, created_at
-       FROM notifications
-       WHERE user_id = $1
-       ORDER BY created_at DESC
-       LIMIT $2`,
-      [req.user.id, limit]
-    ),
-    query(
-      `SELECT COUNT(*) AS count
-       FROM notifications
-       WHERE user_id = $1 AND read_at IS NULL`,
-      [req.user.id]
-    )
+    Notification.find({ user_id: req.user.id }).sort({ created_at: -1 }).limit(limit),
+    Notification.countDocuments({ user_id: req.user.id, read_at: null })
   ]);
 
   res.json({
-    notifications: notifications.rows,
-    unread_count: unread.rows[0].count
+    notifications: plainMany(notifications),
+    unread_count: unread
   });
 });
 
 const markNotificationRead = asyncHandler(async (req, res) => {
-  const notificationId = parseId(req.params.id);
-  await query(
-    `UPDATE notifications
-     SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-     WHERE id = $1 AND user_id = $2`,
-    [notificationId, req.user.id]
-  );
-  const result = await query(
-    `SELECT id, order_id, type, title, message, link_path, read_at, created_at
-     FROM notifications
-     WHERE id = $1 AND user_id = $2`,
-    [notificationId, req.user.id]
+  const notificationId = parseObjectId(req.params.id);
+  const notification = await Notification.findOneAndUpdate(
+    { _id: notificationId, user_id: req.user.id },
+    [{ $set: { read_at: { $ifNull: ['$read_at', '$$NOW'] } } }],
+    { new: true }
   );
 
-  if (!result.rows.length) {
+  if (!notification) {
     throw new HttpError(404, 'Notification not found.');
   }
 
-  res.json({ notification: result.rows[0] });
+  res.json({ notification: plain(notification) });
 });
 
 const markAllNotificationsRead = asyncHandler(async (req, res) => {
-  await query(
-    `UPDATE notifications
-     SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-     WHERE user_id = $1 AND read_at IS NULL`,
-    [req.user.id]
+  await Notification.updateMany(
+    { user_id: req.user.id, read_at: null },
+    { read_at: new Date() }
   );
 
   res.json({ ok: true });

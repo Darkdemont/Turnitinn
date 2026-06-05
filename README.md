@@ -12,7 +12,7 @@ Payment gateway, email, and WhatsApp integrations are intentionally not included
 
 - Backend: Node.js, Express
 - Frontend: React, Vite
-- Database: MySQL/MariaDB
+- Database: MongoDB Atlas via Mongoose
 - Auth: JWT with bcrypt password hashing
 - Uploads: Multer with protected download routes
 
@@ -24,13 +24,7 @@ Payment gateway, email, and WhatsApp integrations are intentionally not included
 npm run install:all
 ```
 
-2. Create a MySQL/MariaDB database:
-
-```sql
-CREATE DATABASE turnit_phase1;
-```
-
-3. Copy the example environment file:
+2. Copy the example environment file:
 
 ```bash
 cp .env.example .env
@@ -42,21 +36,16 @@ On Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-4. Update `.env` if your MySQL username, password, host, or port differs:
+3. Add your MongoDB connection string:
 
 ```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=turnit_phase1
-DB_USER=root
-DB_PASSWORD=
+MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/turnit_phase1
 JWT_SECRET=replace_this_with_a_long_random_secret
 ```
 
-On Hostinger, create a separate MySQL database for this app in hPanel/phpMyAdmin and copy
-the hPanel database host, name, username, and password into these values.
+For local development, `mongodb://127.0.0.1:27017/turnit_phase1` is also supported.
 
-5. Create tables and seed demo users:
+4. Create indexes and seed demo users:
 
 ```bash
 npm run db:seed --prefix backend
@@ -68,7 +57,7 @@ Seed logins:
 - Staff: `staff@turnit.local` / `Password123!`
 - Customer: `customer@turnit.local` / `Password123!`
 
-6. Start the backend:
+5. Start the backend:
 
 ```bash
 npm run dev --prefix backend
@@ -76,13 +65,13 @@ npm run dev --prefix backend
 
 Backend URL: `http://localhost:5000`
 
-7. Start the frontend in another terminal:
+6. Start the frontend in another terminal:
 
 ```bash
 npm run dev --prefix frontend
 ```
 
-Frontend URL: `http://localhost:5173`
+Frontend URL: `http://localhost:5199`
 
 ## Hostinger Git Deployment
 
@@ -108,21 +97,20 @@ Add these environment variables in Hostinger:
 ```env
 NODE_ENV=production
 PORT=3000
-DB_HOST=your_hostinger_mysql_host
-DB_PORT=3306
-DB_NAME=your_database_name
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
+FRONTEND_URL=https://turnnchecker.com
+MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/turnit_phase1
 JWT_SECRET=replace_this_with_a_long_random_secret
 JWT_EXPIRES_IN=7d
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE_MB=20
 MAX_FILES_PER_ORDER=20
 STAFF_MAX_ACTIVE_ORDERS=3
+FILE_RETENTION_HOURS=24
+FILE_CLEANUP_INTERVAL_MINUTES=60
 ```
 
 After the first deployment, run the database seed once from Hostinger's terminal/SSH or your local
-machine with the production database credentials:
+machine with the production `MONGODB_URI`:
 
 ```bash
 npm run db:seed --prefix backend
@@ -130,6 +118,20 @@ npm run db:seed --prefix backend
 
 After Hostinger is connected to GitHub, updates merged or pushed to the deployment branch can trigger
 automatic redeployments from hPanel.
+
+## File Retention
+
+Uploaded order files and uploaded report files are stored on disk, not inside MongoDB. Each file record
+gets an `expires_at` timestamp. By default, files expire after 24 hours:
+
+```env
+FILE_RETENTION_HOURS=24
+FILE_CLEANUP_INTERVAL_MINUTES=60
+```
+
+The cleanup worker removes expired physical files and marks their database records with `deleted_at`
+and `delete_reason = expired`. Orders, customers, reports, earnings, and activity history remain in
+MongoDB, so storage is saved without losing business history.
 
 ## Main Pages
 
@@ -177,23 +179,29 @@ MAX_FILE_SIZE_MB=20
 MAX_FILES_PER_ORDER=20
 ```
 
-Files are stored under `backend/uploads` with unique names containing the order number. Downloads go through protected API routes, not direct static file serving.
+Files are stored under `backend/uploads` with unique names containing the order number. Downloads go
+through protected API routes, not direct static file serving.
 
 ## Staff Acceptance Logic
 
-The staff accept endpoint uses a MySQL named lock plus an atomic database update:
+The staff accept endpoint uses an atomic MongoDB update:
 
-```sql
-UPDATE orders
-SET accepted_by_staff_id = $1,
-    accepted_at = CURRENT_TIMESTAMP,
-    order_status = 'accepted'
-WHERE id = $2
-  AND order_status = 'available'
-  AND accepted_by_staff_id IS NULL;
+```js
+Order.findOneAndUpdate(
+  {
+    _id: orderId,
+    order_status: 'available',
+    accepted_by_staff_id: { $exists: false }
+  },
+  {
+    accepted_by_staff_id: staffId,
+    accepted_at: new Date(),
+    order_status: 'accepted'
+  }
+);
 ```
 
-If no row is updated, the API returns:
+If no document is updated, the API returns:
 
 ```text
 This order was already accepted by another staff member.

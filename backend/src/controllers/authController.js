@@ -1,8 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
-const { query } = require('../config/db');
 const env = require('../config/env');
+const { User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { logActivity } = require('../utils/activityLogger');
@@ -48,26 +48,21 @@ const register = asyncHandler(async (req, res) => {
   const payload = registerSchema.parse(req.body);
   const email = payload.email.toLowerCase();
 
-  const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
-  if (existing.rows.length) {
+  const existing = await User.exists({ email });
+  if (existing) {
     throw new HttpError(409, 'An account with this email already exists.');
   }
 
   const passwordHash = await bcrypt.hash(payload.password, 12);
-  const created = await query(
-    `INSERT INTO users (name, email, phone, password_hash, role, status)
-     VALUES ($1, $2, $3, $4, 'customer', 'active')
-    `,
-    [payload.name, email, payload.phone, passwordHash]
-  );
-  const result = await query(
-    `SELECT id, name, email, phone, role, status
-     FROM users
-     WHERE id = $1`,
-    [created.insertId]
-  );
+  const user = await User.create({
+    name: payload.name,
+    email,
+    phone: payload.phone,
+    password_hash: passwordHash,
+    role: 'customer',
+    status: 'active'
+  });
 
-  const user = result.rows[0];
   await logActivity({
     userId: user.id,
     action: 'customer_registered',
@@ -85,14 +80,7 @@ const login = asyncHandler(async (req, res) => {
   const payload = loginSchema.parse(req.body);
   const email = payload.email.toLowerCase();
 
-  const result = await query(
-    `SELECT id, name, email, phone, password_hash, role, status
-     FROM users
-     WHERE email = $1`,
-    [email]
-  );
-
-  const user = result.rows[0];
+  const user = await User.findOne({ email });
   const validPassword = user ? await bcrypt.compare(payload.password, user.password_hash) : false;
   if (!user || !validPassword) {
     throw new HttpError(401, 'Invalid email or password.');

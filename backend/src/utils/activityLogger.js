@@ -1,18 +1,19 @@
-const { pool } = require('../config/db');
+const { ActivityLog } = require('../models');
 
 async function logActivity({
   userId = null,
   orderId = null,
   action,
   description,
-  ipAddress = null,
-  client = pool
+  ipAddress = null
 }) {
-  await client.query(
-    `INSERT INTO activity_logs (user_id, order_id, action, description, ip_address)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [userId, orderId, action, description, ipAddress]
-  );
+  await ActivityLog.create({
+    user_id: userId,
+    order_id: orderId,
+    action,
+    description,
+    ip_address: ipAddress
+  });
 }
 
 module.exports = {

@@ -1,13 +1,14 @@
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
-const { pool } = require('../config/db');
+const { closeDatabase, connectDatabase } = require('../config/db');
+const models = require('../models');
+const { Counter, User } = models;
 
 async function seed() {
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+  await connectDatabase();
+  await Promise.all(Object.values(models).map((Model) => Model.createIndexes()));
 
-  await pool.query(schemaSql);
+  await Counter.updateOne({ name: 'order_number' }, { $setOnInsert: { value: 0 } }, { upsert: true });
+  await Counter.updateOne({ name: 'package_number' }, { $setOnInsert: { value: 0 } }, { upsert: true });
 
   const passwordHash = await bcrypt.hash('Password123!', 12);
   const users = [
@@ -32,16 +33,18 @@ async function seed() {
   ];
 
   for (const user of users) {
-    await pool.query(
-      `INSERT INTO users (name, email, phone, password_hash, role, status)
-       VALUES ($1, $2, $3, $4, $5, 'active')
-       ON DUPLICATE KEY UPDATE
-         name = VALUES(name),
-         phone = VALUES(phone),
-         password_hash = VALUES(password_hash),
-         role = VALUES(role),
-         status = 'active'`,
-      [user.name, user.email, user.phone, passwordHash, user.role]
+    await User.updateOne(
+      { email: user.email },
+      {
+        $set: {
+          name: user.name,
+          phone: user.phone,
+          password_hash: passwordHash,
+          role: user.role,
+          status: 'active'
+        }
+      },
+      { upsert: true }
     );
   }
 
@@ -49,11 +52,11 @@ async function seed() {
   console.log('Admin: admin@turnit.local / Password123!');
   console.log('Staff: staff@turnit.local / Password123!');
   console.log('Customer: customer@turnit.local / Password123!');
-  await pool.end();
+  await closeDatabase();
 }
 
 seed().catch(async (error) => {
   console.error(error);
-  await pool.end();
+  await closeDatabase();
   process.exit(1);
 });

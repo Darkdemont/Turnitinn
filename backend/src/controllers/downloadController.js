@@ -1,49 +1,43 @@
 const fs = require('fs');
-const { query } = require('../config/db');
+const { Order, OrderFile, ReportFile } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
+const { objectIdEquals, parseObjectId } = require('../utils/mongo');
 const { resolveStoredFile } = require('../utils/fileStorage');
 
-function parseId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, 'Invalid id.');
-  }
-  return id;
+function fileIsExpired(file) {
+  return Boolean(file.deleted_at);
 }
 
-function canDownloadOrderFile(user, file) {
+function canDownloadOrderFile(user, file, order) {
   if (user.role === 'admin') return true;
-  if (user.role === 'customer') return file.customer_id === user.id;
-  if (user.role === 'staff') return file.accepted_by_staff_id === user.id;
+  if (user.role === 'customer') return objectIdEquals(order.customer_id, user.id);
+  if (user.role === 'staff') return objectIdEquals(order.accepted_by_staff_id, user.id);
   return false;
 }
 
-function canDownloadReportFile(user, file) {
+function canDownloadReportFile(user, file, order) {
   if (user.role === 'admin') return true;
-  if (user.role === 'customer') return file.customer_id === user.id;
+  if (user.role === 'customer') return objectIdEquals(order.customer_id, user.id);
   if (user.role === 'staff') {
-    return file.accepted_by_staff_id === user.id || file.uploaded_by_staff_id === user.id;
+    return objectIdEquals(order.accepted_by_staff_id, user.id) || objectIdEquals(file.uploaded_by_staff_id, user.id);
   }
   return false;
 }
 
 const downloadOrderFile = asyncHandler(async (req, res) => {
-  const fileId = parseId(req.params.id);
-  const result = await query(
-    `SELECT f.*, o.customer_id, o.accepted_by_staff_id
-     FROM order_files f
-     JOIN orders o ON o.id = f.order_id
-     WHERE f.id = $1`,
-    [fileId]
-  );
-
-  const file = result.rows[0];
+  const fileId = parseObjectId(req.params.id);
+  const file = await OrderFile.findById(fileId);
   if (!file) {
     throw new HttpError(404, 'File not found.');
   }
-  if (!canDownloadOrderFile(req.user, file)) {
+
+  const order = await Order.findById(file.order_id);
+  if (!order || !canDownloadOrderFile(req.user, file, order)) {
     throw new HttpError(403, 'You do not have access to this file.');
+  }
+  if (fileIsExpired(file)) {
+    throw new HttpError(410, 'This uploaded file expired and was removed from storage.');
   }
 
   const absolutePath = resolveStoredFile(file.file_path);
@@ -55,21 +49,18 @@ const downloadOrderFile = asyncHandler(async (req, res) => {
 });
 
 const downloadReportFile = asyncHandler(async (req, res) => {
-  const fileId = parseId(req.params.id);
-  const result = await query(
-    `SELECT r.*, o.customer_id, o.accepted_by_staff_id
-     FROM report_files r
-     JOIN orders o ON o.id = r.order_id
-     WHERE r.id = $1`,
-    [fileId]
-  );
-
-  const file = result.rows[0];
+  const fileId = parseObjectId(req.params.id);
+  const file = await ReportFile.findById(fileId);
   if (!file) {
     throw new HttpError(404, 'Report not found.');
   }
-  if (!canDownloadReportFile(req.user, file)) {
+
+  const order = await Order.findById(file.order_id);
+  if (!order || !canDownloadReportFile(req.user, file, order)) {
     throw new HttpError(403, 'You do not have access to this report.');
+  }
+  if (fileIsExpired(file)) {
+    throw new HttpError(410, 'This report file expired and was removed from storage.');
   }
 
   const absolutePath = resolveStoredFile(file.file_path);

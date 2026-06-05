@@ -1,26 +1,29 @@
-const { query } = require('../config/db');
+const { Notification, User } = require('../models');
 
-function dbFromClient(client) {
-  return client || { query };
+async function notifyUser({ userId, orderId = null, type, title, message, linkPath = null }) {
+  await Notification.create({
+    user_id: userId,
+    order_id: orderId,
+    type,
+    title,
+    message,
+    link_path: linkPath
+  });
 }
 
-async function notifyUser({ userId, orderId = null, type, title, message, linkPath = null, client = null }) {
-  const db = dbFromClient(client);
-  await db.query(
-    `INSERT INTO notifications (user_id, order_id, type, title, message, link_path)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [userId, orderId, type, title, message, linkPath]
-  );
-}
+async function notifyRole({ role, orderId = null, type, title, message, linkPath = null }) {
+  const users = await User.find({ role, status: 'active' }).select('_id');
+  if (!users.length) return;
 
-async function notifyRole({ role, orderId = null, type, title, message, linkPath = null, client = null }) {
-  const db = dbFromClient(client);
-  await db.query(
-    `INSERT INTO notifications (user_id, order_id, type, title, message, link_path)
-     SELECT id, $2, $3, $4, $5, $6
-     FROM users
-     WHERE role = $1 AND status = 'active'`,
-    [role, orderId, type, title, message, linkPath]
+  await Notification.insertMany(
+    users.map((user) => ({
+      user_id: user._id,
+      order_id: orderId,
+      type,
+      title,
+      message,
+      link_path: linkPath
+    }))
   );
 }
 

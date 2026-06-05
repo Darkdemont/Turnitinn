@@ -57,6 +57,18 @@ async function removeTempFiles(files = []) {
   );
 }
 
+async function removeStoredFile(relativePath) {
+  if (!relativePath) return;
+  const absolutePath = resolveStoredFile(relativePath);
+  try {
+    await fs.promises.unlink(absolutePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
+
 async function storeUploadedFiles(orderNumber, files, category) {
   const folderName = category === 'reports' ? 'reports' : 'orders';
   const targetDir = path.join(env.uploadRoot, folderName, orderNumber);
@@ -96,6 +108,7 @@ module.exports = {
   ensureUploadDirectories,
   isAllowedFile,
   removeTempFiles,
+  removeStoredFile,
   resolveStoredFile,
   storeUploadedFiles
 };

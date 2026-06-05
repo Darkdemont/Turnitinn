@@ -1,72 +1,86 @@
 const { z } = require('zod');
-const { pool, query } = require('../config/db');
+const env = require('../config/env');
+const { CustomerPackage, Order, OrderFile, ReportFile, User } = require('../models');
 const { PRICES_LKR } = require('../constants/pricing');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { logActivity } = require('../utils/activityLogger');
 const { generateOrderNumber } = require('../utils/orderNumber');
 const { generatePackageNumber } = require('../utils/packageNumber');
+const { plain, plainMany, parseObjectId } = require('../utils/mongo');
 const { removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
 const { notifyRole } = require('../utils/notificationService');
 
 const createOrderSchema = z.object({
   service_type: z.literal('ai_similarity').optional().default('ai_similarity'),
   package_file_count: z.coerce.number().int().positive().optional(),
-  package_id: z.coerce.number().int().positive().optional()
+  package_id: z.string().optional()
 });
 
 const allowedPackageCounts = new Set([1, 5, 10]);
 
-function parseId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new HttpError(400, 'Invalid id.');
-  }
-  return id;
+function fileExpiryDate() {
+  return new Date(Date.now() + env.fileRetentionHours * 60 * 60 * 1000);
+}
+
+async function packageNumberFor(packageId) {
+  if (!packageId) return null;
+  const row = await CustomerPackage.findById(packageId).select('package_number');
+  return row?.package_number || null;
 }
 
 const dashboard = asyncHandler(async (req, res) => {
-  const [summary, recent, packages] = await Promise.all([
-    query(
-      `SELECT
-         COUNT(*) AS total_orders,
-         SUM(CASE WHEN order_status = 'available' THEN 1 ELSE 0 END) AS available_orders,
-         SUM(CASE WHEN order_status IN ('accepted', 'checking', 'report_uploaded') THEN 1 ELSE 0 END) AS in_progress_orders,
-         SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) AS completed_orders,
-         COALESCE(SUM(total_amount_lkr), 0) AS total_spend_lkr
-       FROM orders
-       WHERE customer_id = $1`,
-      [req.user.id]
-    ),
-    query(
-      `SELECT o.id, o.order_number, o.service_type, o.file_count, o.total_amount_lkr,
-              o.payment_status, o.order_status, o.created_at,
-              p.package_number
-       FROM orders o
-       LEFT JOIN customer_packages p ON p.id = o.customer_package_id
-       WHERE o.customer_id = $1
-       ORDER BY o.created_at DESC
-       LIMIT 5`,
-      [req.user.id]
-    ),
-    query(
-      `SELECT id, package_number, package_file_count, used_file_count,
-              (package_file_count - used_file_count) AS remaining_file_count,
-              price_per_file_lkr, total_amount_lkr, status, created_at
-       FROM customer_packages
-       WHERE customer_id = $1
-         AND payment_status = 'paid'
-         AND status = 'active'
-         AND used_file_count < package_file_count
-       ORDER BY created_at DESC`,
-      [req.user.id]
-    )
+  const userId = req.user.id;
+  const [summaryRows, recentDocs, packages] = await Promise.all([
+    Order.aggregate([
+      { $match: { customer_id: parseObjectId(userId) } },
+      {
+        $group: {
+          _id: null,
+          total_orders: { $sum: 1 },
+          available_orders: { $sum: { $cond: [{ $eq: ['$order_status', 'available'] }, 1, 0] } },
+          in_progress_orders: {
+            $sum: {
+              $cond: [{ $in: ['$order_status', ['accepted', 'checking', 'report_uploaded']] }, 1, 0]
+            }
+          },
+          completed_orders: { $sum: { $cond: [{ $eq: ['$order_status', 'completed'] }, 1, 0] } },
+          total_spend_lkr: { $sum: '$total_amount_lkr' }
+        }
+      }
+    ]),
+    Order.find({ customer_id: userId })
+      .sort({ created_at: -1 })
+      .limit(5)
+      .select('order_number service_type file_count total_amount_lkr payment_status order_status created_at customer_package_id'),
+    CustomerPackage.find({
+      customer_id: userId,
+      payment_status: 'paid',
+      status: 'active',
+      $expr: { $lt: ['$used_file_count', '$package_file_count'] }
+    }).sort({ created_at: -1 })
   ]);
 
+  const recent_orders = await Promise.all(
+    recentDocs.map(async (order) => ({
+      ...plain(order),
+      package_number: await packageNumberFor(order.customer_package_id)
+    }))
+  );
+
   res.json({
-    summary: summary.rows[0],
-    recent_orders: recent.rows,
-    packages: packages.rows
+    summary: summaryRows[0] || {
+      total_orders: 0,
+      available_orders: 0,
+      in_progress_orders: 0,
+      completed_orders: 0,
+      total_spend_lkr: 0
+    },
+    recent_orders,
+    packages: plainMany(packages).map((row) => ({
+      ...row,
+      remaining_file_count: Number(row.package_file_count) - Number(row.used_file_count)
+    }))
   });
 });
 
@@ -81,162 +95,119 @@ const createOrder = asyncHandler(async (req, res) => {
 
     const pricePerFile = PRICES_LKR[payload.service_type];
     const fileCount = uploadedFiles.length;
-    const client = await pool.connect();
+    let packageId = payload.package_id ? parseObjectId(payload.package_id) : null;
+    let packageNumber = null;
+    let packageFileCount = payload.package_file_count || fileCount;
+    let remainingCredits = 0;
+    let orderTotalAmount = 0;
 
-    try {
-      await client.query('BEGIN');
-      let packageId = payload.package_id || null;
-      let packageNumber = null;
-      let remainingCredits = 0;
-      let orderTotalAmount = 0;
-
-      if (packageId) {
-        const packageResult = await client.query(
-          `SELECT id, package_number, package_file_count, used_file_count, status, payment_status
-           FROM customer_packages
-           WHERE id = $1 AND customer_id = $2
-           FOR UPDATE`,
-          [packageId, req.user.id]
-        );
-        const customerPackage = packageResult.rows[0];
-        if (!customerPackage) {
-          throw new HttpError(404, 'Package not found.');
-        }
-        if (customerPackage.status !== 'active' || customerPackage.payment_status !== 'paid') {
-          throw new HttpError(400, 'This package cannot be used.');
-        }
-
-        remainingCredits =
-          Number(customerPackage.package_file_count) - Number(customerPackage.used_file_count);
-        if (fileCount > remainingCredits) {
-          throw new HttpError(400, `This package has only ${remainingCredits} file credit(s) remaining.`);
-        }
-        packageNumber = customerPackage.package_number;
-      } else {
-        const packageFileCount = payload.package_file_count || fileCount;
-        if (!allowedPackageCounts.has(packageFileCount)) {
-          throw new HttpError(400, 'Select a valid package: 1, 5, or 10 files.');
-        }
-        if (fileCount > packageFileCount) {
-          throw new HttpError(400, `Selected package allows only ${packageFileCount} file(s).`);
-        }
-
-        packageNumber = await generatePackageNumber(client);
-        orderTotalAmount = pricePerFile * packageFileCount;
-        const packageResult = await client.query(
-          `INSERT INTO customer_packages (
-             package_number, customer_id, service_type, package_file_count, used_file_count,
-             price_per_file_lkr, total_amount_lkr, payment_status, status
-           )
-           VALUES ($1, $2, 'ai_similarity', $3, 0, $4, $5, 'paid', 'active')
-          `,
-          [packageNumber, req.user.id, packageFileCount, pricePerFile, orderTotalAmount]
-        );
-        packageId = packageResult.insertId;
-        remainingCredits = packageFileCount;
+    if (packageId) {
+      const customerPackage = await CustomerPackage.findOne({
+        _id: packageId,
+        customer_id: req.user.id
+      });
+      if (!customerPackage) {
+        throw new HttpError(404, 'Package not found.');
+      }
+      if (customerPackage.status !== 'active' || customerPackage.payment_status !== 'paid') {
+        throw new HttpError(400, 'This package cannot be used.');
       }
 
-      const orderNumber = await generateOrderNumber(client);
-      const createdOrder = await client.query(
-        `INSERT INTO orders (
-           order_number, customer_package_id, customer_id, service_type, file_count, price_per_file_lkr,
-           total_amount_lkr, currency, payment_status, order_status
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'LKR', 'paid', 'available')
-        `,
-        [
-          orderNumber,
-          packageId,
-          req.user.id,
-          payload.service_type,
-          fileCount,
-          pricePerFile,
-          orderTotalAmount
-        ]
-      );
-      const orderResult = await client.query('SELECT * FROM orders WHERE id = $1', [createdOrder.insertId]);
-
-      const order = orderResult.rows[0];
-      const storedFiles = await storeUploadedFiles(orderNumber, uploadedFiles, 'orders');
-
-      for (const file of storedFiles) {
-        await client.query(
-          `INSERT INTO order_files (
-             order_id, original_file_name, stored_file_name, file_path, file_type, file_size
-           )
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            order.id,
-            file.original_file_name,
-            file.stored_file_name,
-            file.file_path,
-            file.file_type,
-            file.file_size
-          ]
-        );
+      remainingCredits = Number(customerPackage.package_file_count) - Number(customerPackage.used_file_count);
+      if (fileCount > remainingCredits) {
+        throw new HttpError(400, `This package has only ${remainingCredits} file credit(s) remaining.`);
+      }
+      packageNumber = customerPackage.package_number;
+      packageFileCount = customerPackage.package_file_count;
+    } else {
+      if (!allowedPackageCounts.has(packageFileCount)) {
+        throw new HttpError(400, 'Select a valid package: 1, 5, or 10 files.');
+      }
+      if (fileCount > packageFileCount) {
+        throw new HttpError(400, `Selected package allows only ${packageFileCount} file(s).`);
       }
 
-      await client.query(
-        `UPDATE customer_packages
-         SET used_file_count = used_file_count + $1,
-             status = CASE
-               WHEN used_file_count + $1 >= package_file_count THEN 'used'
-               ELSE 'active'
-             END
-         WHERE id = $2`,
-        [fileCount, packageId]
-      );
-      const newUsedCount = await client.query(
-        `SELECT package_file_count, used_file_count, status
-         FROM customer_packages
-         WHERE id = $1`,
-        [packageId]
-      );
-
-      await logActivity({
-        userId: req.user.id,
-        orderId: order.id,
-        action: 'order_created',
-        description: `${order.order_number} created using package ${packageNumber}.`,
-        ipAddress: req.ip,
-        client
+      packageNumber = await generatePackageNumber();
+      orderTotalAmount = pricePerFile * packageFileCount;
+      const customerPackage = await CustomerPackage.create({
+        package_number: packageNumber,
+        customer_id: req.user.id,
+        service_type: 'ai_similarity',
+        package_file_count: packageFileCount,
+        used_file_count: 0,
+        price_per_file_lkr: pricePerFile,
+        total_amount_lkr: orderTotalAmount,
+        payment_status: 'paid',
+        status: 'active'
       });
-
-      await notifyRole({
-        role: 'staff',
-        orderId: order.id,
-        type: 'new_order_available',
-        title: 'New order available',
-        message: `${order.order_number} is ready to accept with ${fileCount} file(s).`,
-        linkPath: '/staff/available-orders',
-        client
-      });
-
-      await client.query('COMMIT');
-      res.status(201).json({
-        order,
-        package: {
-          id: packageId,
-          package_number: packageNumber,
-          package_file_count: newUsedCount.rows[0].package_file_count,
-          used_file_count: newUsedCount.rows[0].used_file_count,
-          status: newUsedCount.rows[0].status,
-          remaining_file_count:
-            Number(newUsedCount.rows[0].package_file_count) - Number(newUsedCount.rows[0].used_file_count)
-        },
-        files: storedFiles.map((file, index) => ({
-          id: index + 1,
-          original_file_name: file.original_file_name,
-          file_size: file.file_size,
-          file_type: file.file_type
-        }))
-      });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+      packageId = customerPackage._id;
+      remainingCredits = packageFileCount;
     }
+
+    const orderNumber = await generateOrderNumber();
+    const order = await Order.create({
+      order_number: orderNumber,
+      customer_package_id: packageId,
+      customer_id: req.user.id,
+      service_type: payload.service_type,
+      file_count: fileCount,
+      price_per_file_lkr: pricePerFile,
+      total_amount_lkr: orderTotalAmount,
+      currency: 'LKR',
+      payment_status: 'paid',
+      order_status: 'available'
+    });
+
+    const storedFiles = await storeUploadedFiles(orderNumber, uploadedFiles, 'orders');
+    const expiresAt = fileExpiryDate();
+    await OrderFile.insertMany(
+      storedFiles.map((file) => ({
+        order_id: order._id,
+        ...file,
+        expires_at: expiresAt
+      }))
+    );
+
+    const usedCount = await CustomerPackage.findById(packageId);
+    usedCount.used_file_count += fileCount;
+    usedCount.status = usedCount.used_file_count >= usedCount.package_file_count ? 'used' : 'active';
+    await usedCount.save();
+
+    await logActivity({
+      userId: req.user.id,
+      orderId: order.id,
+      action: 'order_created',
+      description: `${order.order_number} created using package ${packageNumber}.`,
+      ipAddress: req.ip
+    });
+
+    await notifyRole({
+      role: 'staff',
+      orderId: order.id,
+      type: 'new_order_available',
+      title: 'New order available',
+      message: `${order.order_number} is ready to accept with ${fileCount} file(s).`,
+      linkPath: '/staff/available-orders'
+    });
+
+    res.status(201).json({
+      order: plain(order),
+      package: {
+        id: usedCount.id,
+        package_number: packageNumber,
+        package_file_count: usedCount.package_file_count,
+        used_file_count: usedCount.used_file_count,
+        status: usedCount.status,
+        remaining_file_count: Number(usedCount.package_file_count) - Number(usedCount.used_file_count)
+      },
+      files: storedFiles.map((file, index) => ({
+        id: index + 1,
+        original_file_name: file.original_file_name,
+        file_size: file.file_size,
+        file_type: file.file_type,
+        expires_at: expiresAt
+      }))
+    });
   } catch (error) {
     await removeTempFiles(uploadedFiles);
     throw error;
@@ -244,55 +215,39 @@ const createOrder = asyncHandler(async (req, res) => {
 });
 
 const listOrders = asyncHandler(async (req, res) => {
-  const result = await query(
-    `SELECT o.*, p.package_number,
-            (SELECT COUNT(*) FROM report_files r WHERE r.order_id = o.id) AS report_count
-     FROM orders o
-     LEFT JOIN customer_packages p ON p.id = o.customer_package_id
-     WHERE o.customer_id = $1
-     ORDER BY o.created_at DESC`,
-    [req.user.id]
+  const orders = await Order.find({ customer_id: req.user.id }).sort({ created_at: -1 });
+  const rows = await Promise.all(
+    orders.map(async (order) => ({
+      ...plain(order),
+      package_number: await packageNumberFor(order.customer_package_id),
+      report_count: await ReportFile.countDocuments({ order_id: order._id })
+    }))
   );
-  res.json({ orders: result.rows });
+  res.json({ orders: rows });
 });
 
 const getOrderDetails = asyncHandler(async (req, res) => {
-  const orderId = parseId(req.params.id);
-  const orderResult = await query(
-    `SELECT o.*, p.package_number, s.name AS staff_name
-     FROM orders o
-     LEFT JOIN customer_packages p ON p.id = o.customer_package_id
-     LEFT JOIN users s ON s.id = o.accepted_by_staff_id
-     WHERE o.id = $1 AND o.customer_id = $2`,
-    [orderId, req.user.id]
-  );
-
-  const order = orderResult.rows[0];
+  const orderId = parseObjectId(req.params.id);
+  const order = await Order.findOne({ _id: orderId, customer_id: req.user.id });
   if (!order) {
     throw new HttpError(404, 'Order not found.');
   }
 
-  const [files, reports] = await Promise.all([
-    query(
-      `SELECT id, original_file_name, file_type, file_size, uploaded_at
-       FROM order_files
-       WHERE order_id = $1
-       ORDER BY id ASC`,
-      [orderId]
-    ),
-    query(
-      `SELECT id, original_file_name, file_type, file_size, uploaded_at
-       FROM report_files
-       WHERE order_id = $1
-       ORDER BY uploaded_at DESC`,
-      [orderId]
-    )
+  const [files, reports, packageNumber, staff] = await Promise.all([
+    OrderFile.find({ order_id: orderId }).sort({ _id: 1 }),
+    ReportFile.find({ order_id: orderId }).sort({ uploaded_at: -1 }),
+    packageNumberFor(order.customer_package_id),
+    order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
   ]);
 
   res.json({
-    order,
-    files: files.rows,
-    reports: reports.rows
+    order: {
+      ...plain(order),
+      package_number: packageNumber,
+      staff_name: staff?.name || null
+    },
+    files: plainMany(files),
+    reports: plainMany(reports)
   });
 });
 

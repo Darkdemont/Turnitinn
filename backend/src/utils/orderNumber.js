@@ -1,7 +1,12 @@
-async function generateOrderNumber(client) {
-  await client.query("UPDATE app_counters SET value = LAST_INSERT_ID(value + 1) WHERE name = 'order_number'");
-  const result = await client.query('SELECT LAST_INSERT_ID() AS value');
-  const sequence = String(result.rows[0].value).padStart(6, '0');
+const { Counter } = require('../models');
+
+async function generateOrderNumber() {
+  const counter = await Counter.findOneAndUpdate(
+    { name: 'order_number' },
+    { $inc: { value: 1 } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+  const sequence = String(counter.value).padStart(6, '0');
   const year = new Date().getFullYear();
   return `ORD-${year}-${sequence}`;
 }
