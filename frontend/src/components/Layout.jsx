@@ -20,6 +20,10 @@ const navItems = {
     { label: 'New Order', path: '/customer/new-order', icon: PlusCircle },
     { label: 'My Orders', path: '/customer/orders', icon: ClipboardList }
   ],
+  wholesaler: [
+    { label: 'Dashboard', path: '/wholesaler/dashboard', icon: LayoutDashboard },
+    { label: 'My Orders', path: '/wholesaler/orders', icon: ClipboardList }
+  ],
   staff: [
     { label: 'Dashboard', path: '/staff/dashboard', icon: LayoutDashboard },
     { label: 'Available', path: '/staff/available-orders', icon: FileText },
@@ -31,6 +35,7 @@ const navItems = {
     { label: 'Orders', path: '/admin/orders', icon: ClipboardList },
     { label: 'Customers', path: '/admin/customers', icon: Users },
     { label: 'Staff', path: '/admin/staff', icon: FileCheck2 },
+    { label: 'Wholesalers', path: '/admin/wholesalers', icon: Users },
     { label: 'Earnings', path: '/admin/staff-earnings', icon: DollarSign },
     { label: 'Revenue', path: '/admin/revenue', icon: Receipt },
     { label: 'Logs', path: '/admin/activity-logs', icon: ScrollText }
@@ -44,7 +49,15 @@ export default function Layout() {
 
   function handleLogout() {
     logout();
-    navigate(user?.role === 'admin' ? '/admin/login' : user?.role === 'staff' ? '/staff/login' : '/login');
+    navigate(
+      user?.role === 'admin'
+        ? '/admin/login'
+        : user?.role === 'staff'
+          ? '/staff/login'
+          : user?.role === 'wholesaler'
+            ? '/wholesaler/login'
+            : '/login'
+    );
   }
 
   return (
@@ -85,7 +98,7 @@ export default function Layout() {
       <div className="main-area">
         <header className="topbar">
           <div className="topbar-actions">
-            {user?.role === 'customer' || user?.role === 'staff' ? (
+            {user?.role === 'customer' || user?.role === 'staff' || user?.role === 'wholesaler' ? (
               <NotificationBell role={user.role} />
             ) : null}
             <div>

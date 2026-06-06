@@ -39,6 +39,12 @@ function activeFileFilter(orderId) {
   };
 }
 
+function ownerOrderPath(order) {
+  return order.account_type === 'wholesaler'
+    ? `/wholesaler/orders/${order.id}`
+    : `/customer/orders/${order.id}`;
+}
+
 const dashboard = asyncHandler(async (req, res) => {
   const [available, active, completed, earningsRows, availableDocs, activeDocs] = await Promise.all([
     Order.countDocuments({
@@ -71,14 +77,14 @@ const dashboard = asyncHandler(async (req, res) => {
     })
       .sort({ created_at: 1 })
       .limit(5)
-      .select('order_number service_type file_count order_status created_at'),
+      .select('order_number account_type service_type file_count order_status created_at'),
     Order.find({
       accepted_by_staff_id: req.user.id,
       order_status: { $in: ACTIVE_STAFF_STATUSES }
     })
       .sort({ updated_at: -1 })
       .limit(5)
-      .select('order_number service_type file_count order_status accepted_at completed_at')
+      .select('order_number account_type service_type file_count order_status accepted_at completed_at')
   ]);
 
   const activeOrders = await Promise.all(
@@ -123,6 +129,7 @@ const availableOrders = asyncHandler(async (req, res) => {
     orders: orders.map((order) => ({
       id: order.id,
       order_number: order.order_number,
+      account_type: order.account_type,
       service_type: order.service_type,
       file_count: order.file_count,
       payment_status: order.payment_status,
@@ -155,6 +162,7 @@ const completedOrders = asyncHandler(async (req, res) => {
       return {
         id: order.id,
         order_number: order.order_number,
+        account_type: order.account_type,
         service_type: order.service_type,
         file_count: order.file_count,
         completed_at: order.completed_at,
@@ -212,7 +220,7 @@ const acceptOrder = asyncHandler(async (req, res) => {
     type: 'order_accepted',
     title: 'Order accepted',
     message: `${order.order_number} has been accepted and will be checked soon.`,
-    linkPath: `/customer/orders/${order.id}`
+    linkPath: ownerOrderPath(order)
   });
 
   res.json({ order: plain(order) });
@@ -303,12 +311,12 @@ const uploadReport = asyncHandler(async (req, res) => {
 
     await notifyUser({
       userId: order.customer_id,
-      orderId: order.id,
-      type: 'report_uploaded',
-      title: 'Reports uploaded',
-      message: `Reports for ${order.order_number} have been uploaded and are ready to review.`,
-      linkPath: `/customer/orders/${order.id}`
-    });
+    orderId: order.id,
+    type: 'report_uploaded',
+    title: 'Reports uploaded',
+    message: `Reports for ${order.order_number} have been uploaded and are ready to review.`,
+    linkPath: ownerOrderPath(order)
+  });
 
     res.status(201).json({ order: plain(order), reports: storedFiles });
   } catch (error) {
@@ -368,7 +376,7 @@ const markCompleted = asyncHandler(async (req, res) => {
     type: 'order_completed',
     title: 'Report checking completed',
     message: `${order.order_number} is complete. You can download your final reports now.`,
-    linkPath: `/customer/orders/${order.id}`
+    linkPath: ownerOrderPath(order)
   });
 
   res.json({ order: plain(order) });

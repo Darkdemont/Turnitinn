@@ -4,7 +4,7 @@ import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { formatDate, formatLkr, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatDate, formatLkr, serviceLabel } from '../../utils/format';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState(null);
@@ -28,6 +28,7 @@ export default function AdminOrders() {
               <thead>
                 <tr>
                   <th>Order</th>
+                  <th>Account</th>
                   <th>Customer</th>
                   <th>Staff</th>
                   <th>Service</th>
@@ -46,6 +47,7 @@ export default function AdminOrders() {
                         {order.order_number}
                       </Link>
                     </td>
+                    <td>{accountTypeLabel(order.account_type)}</td>
                     <td>{order.customer_name}</td>
                     <td>{order.staff_name || '-'}</td>
                     <td>{serviceLabel(order.service_type)}</td>

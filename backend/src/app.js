@@ -10,6 +10,7 @@ const staffRoutes = require('./routes/staff.routes');
 const adminRoutes = require('./routes/admin.routes');
 const downloadRoutes = require('./routes/download.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const wholesalerRoutes = require('./routes/wholesaler.routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/wholesaler', wholesalerRoutes);
 app.use('/api/download', downloadRoutes);
 app.use('/api/notifications', notificationRoutes);
 

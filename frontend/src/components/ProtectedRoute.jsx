@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { roleHome } from '../utils/format';
 
 function loginPathForRole(role) {
+  if (role === 'wholesaler') return '/wholesaler/login';
   if (role === 'staff') return '/staff/login';
   if (role === 'admin') return '/admin/login';
   return '/login';

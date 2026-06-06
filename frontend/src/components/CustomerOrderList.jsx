@@ -4,14 +4,14 @@ import OrderFileSummary from './OrderFileSummary';
 import ReportDownloadActions from './ReportDownloadActions';
 import StatusBadge from './StatusBadge';
 
-export default function CustomerOrderList({ orders = [], onCancel }) {
+export default function CustomerOrderList({ basePath = '/customer/orders', orders = [], onCancel }) {
   return (
     <div className="customer-order-list">
       {orders.map((order) => (
         <article className="customer-order-item" key={order.id}>
           <div className="customer-order-main">
             <OrderFileSummary files={order.files} fallbackCount={order.file_count} />
-            <Link className="subtle-order-link" to={`/customer/orders/${order.id}`}>
+            <Link className="subtle-order-link" to={`${basePath}/${order.id}`}>
               {order.order_number}
             </Link>
           </div>
@@ -38,7 +38,7 @@ export default function CustomerOrderList({ orders = [], onCancel }) {
                 Cancel
               </button>
             ) : (
-              <Link className="table-action-button secondary" to={`/customer/orders/${order.id}`}>
+              <Link className="table-action-button secondary" to={`${basePath}/${order.id}`}>
                 Details
               </Link>
             )}

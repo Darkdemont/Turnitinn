@@ -12,7 +12,7 @@ async function authenticate(req, res, next) {
     }
 
     const payload = jwt.verify(token, env.jwtSecret);
-    const user = await User.findById(payload.sub).select('name email phone role status');
+    const user = await User.findById(payload.sub).select('name email phone role status rate_per_file_lkr');
 
     if (!user || user.status !== 'active') {
       throw new HttpError(401, 'Account is inactive or no longer exists.');

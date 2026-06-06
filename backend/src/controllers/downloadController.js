@@ -11,14 +11,18 @@ function fileIsExpired(file) {
 
 function canDownloadOrderFile(user, file, order) {
   if (user.role === 'admin') return true;
-  if (user.role === 'customer') return objectIdEquals(order.customer_id, user.id);
+  if (user.role === 'customer' || user.role === 'wholesaler') {
+    return objectIdEquals(order.customer_id, user.id);
+  }
   if (user.role === 'staff') return objectIdEquals(order.accepted_by_staff_id, user.id);
   return false;
 }
 
 function canDownloadReportFile(user, file, order) {
   if (user.role === 'admin') return true;
-  if (user.role === 'customer') return objectIdEquals(order.customer_id, user.id);
+  if (user.role === 'customer' || user.role === 'wholesaler') {
+    return objectIdEquals(order.customer_id, user.id);
+  }
   if (user.role === 'staff') {
     return objectIdEquals(order.accepted_by_staff_id, user.id) || objectIdEquals(file.uploaded_by_staff_id, user.id);
   }

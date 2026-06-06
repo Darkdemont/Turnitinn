@@ -6,6 +6,7 @@ const orderSchema = new Schema(
     order_number: { type: String, required: true, unique: true },
     customer_package_id: { type: Types.ObjectId, ref: 'CustomerPackage' },
     customer_id: { type: Types.ObjectId, ref: 'User', required: true },
+    account_type: { type: String, enum: ['customer', 'wholesaler'], default: 'customer' },
     service_type: { type: String, enum: ['similarity_only', 'ai_similarity'], required: true },
     file_count: { type: Number, required: true, min: 1 },
     price_per_file_lkr: { type: Number, required: true },
@@ -25,7 +26,9 @@ const orderSchema = new Schema(
     accepted_at: Date,
     completed_at: Date,
     ai_score: { type: Number, min: 0, max: 100 },
-    similarity_score: { type: Number, min: 0, max: 100 }
+    similarity_score: { type: Number, min: 0, max: 100 },
+    wholesaler_payment_status: { type: String, enum: ['not_applicable', 'unpaid', 'paid'], default: 'not_applicable' },
+    wholesaler_payment_batch_id: { type: Types.ObjectId, ref: 'WholesalerPaymentBatch' }
   },
   schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })
 );
@@ -34,5 +37,6 @@ orderSchema.index({ customer_id: 1 });
 orderSchema.index({ customer_package_id: 1 });
 orderSchema.index({ order_status: 1, payment_status: 1 });
 orderSchema.index({ accepted_by_staff_id: 1 });
+orderSchema.index({ account_type: 1, wholesaler_payment_status: 1 });
 
 module.exports = model('Order', orderSchema);

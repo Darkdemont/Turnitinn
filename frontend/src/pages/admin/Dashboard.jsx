@@ -5,7 +5,7 @@ import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
-import { formatDate, formatLkr, formatUsd, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatDate, formatLkr, formatUsd, serviceLabel } from '../../utils/format';
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null);
@@ -29,10 +29,16 @@ export default function AdminDashboard() {
         <StatCard label="Orders" value={summary.total_orders} />
         <StatCard label="Customers" value={summary.total_customers} />
         <StatCard label="Staff" value={summary.total_staff} />
+        <StatCard label="Wholesalers" value={summary.total_wholesalers || 0} />
         <StatCard label="Revenue" value={formatLkr(summary.total_revenue_lkr)} />
         <StatCard label="Available" value={summary.available_orders} />
         <StatCard label="Completed" value={summary.completed_orders} />
         <StatCard label="Unpaid staff earnings" value={formatUsd(summary.unpaid_staff_earnings_usd)} />
+        <StatCard
+          label="Wholesaler due"
+          value={formatLkr(summary.unpaid_wholesaler_amount_lkr)}
+          detail={`${summary.unpaid_wholesaler_files || 0} files`}
+        />
       </section>
 
       <section className="panel">
@@ -46,6 +52,7 @@ export default function AdminDashboard() {
               <thead>
                 <tr>
                   <th>Order</th>
+                  <th>Account</th>
                   <th>Customer</th>
                   <th>Staff</th>
                   <th>Service</th>
@@ -63,6 +70,7 @@ export default function AdminDashboard() {
                         {order.order_number}
                       </Link>
                     </td>
+                    <td>{accountTypeLabel(order.account_type)}</td>
                     <td>{order.customer_name}</td>
                     <td>{order.staff_name || '-'}</td>
                     <td>{serviceLabel(order.service_type)}</td>

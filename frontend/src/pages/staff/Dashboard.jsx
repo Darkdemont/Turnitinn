@@ -7,7 +7,7 @@ import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
-import { formatDate, formatUsd, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatDate, formatUsd, serviceLabel } from '../../utils/format';
 
 export default function StaffDashboard() {
   const [data, setData] = useState(null);
@@ -111,7 +111,7 @@ export default function StaffDashboard() {
               <article className="compact-order-row" key={order.id}>
                 <div>
                   <strong>{order.order_number}</strong>
-                  <small>{formatDate(order.created_at)}</small>
+                  <small>{accountTypeLabel(order.account_type)} - {formatDate(order.created_at)}</small>
                 </div>
                 <span>{serviceLabel(order.service_type)}</span>
                 <span>{order.file_count} file(s)</span>
@@ -146,6 +146,10 @@ export default function StaffDashboard() {
                   <StatusBadge value={order.order_status} />
                 </div>
                 <dl className="work-card-details">
+                  <div>
+                    <dt>Account</dt>
+                    <dd>{accountTypeLabel(order.account_type)}</dd>
+                  </div>
                   <div>
                     <dt>Service</dt>
                     <dd>{serviceLabel(order.service_type)}</dd>

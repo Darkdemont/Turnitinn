@@ -6,7 +6,7 @@ import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { formatDate, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatDate, serviceLabel } from '../../utils/format';
 
 export default function StaffAvailableOrders() {
   const [orders, setOrders] = useState(null);
@@ -68,6 +68,7 @@ export default function StaffAvailableOrders() {
               <thead>
                 <tr>
                   <th>Order</th>
+                  <th>Account</th>
                   <th>Service</th>
                   <th>Files</th>
                   <th>Status</th>
@@ -83,6 +84,7 @@ export default function StaffAvailableOrders() {
                         {order.order_number}
                       </Link>
                     </td>
+                    <td>{accountTypeLabel(order.account_type)}</td>
                     <td>{serviceLabel(order.service_type)}</td>
                     <td>{order.file_count}</td>
                     <td><StatusBadge value={order.order_status} /></td>

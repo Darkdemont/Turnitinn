@@ -7,6 +7,7 @@ import { roleHome } from '../../utils/format';
 
 const titleByRole = {
   customer: 'Customer Login',
+  wholesaler: 'Wholesaler Login',
   staff: 'Staff Login',
   admin: 'Admin Login'
 };

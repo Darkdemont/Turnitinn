@@ -1105,6 +1105,51 @@ td {
   box-shadow: none;
 }
 
+.wholesaler-dashboard-grid {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+}
+
+.wholesaler-submit-panel .submit-main {
+  gap: 16px;
+}
+
+.wholesaler-submit-footer {
+  align-items: center;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.wholesaler-submit-footer div {
+  display: grid;
+  gap: 2px;
+}
+
+.wholesaler-submit-footer strong {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.wholesaler-submit-footer span,
+.muted-copy {
+  color: var(--muted);
+}
+
+.wholesaler-billing-panel {
+  align-content: start;
+}
+
+.wholesaler-billing-panel .detail-list dd {
+  font-weight: 750;
+}
+
 .service-grid {
   display: grid;
   gap: 12px;
@@ -1334,6 +1379,7 @@ td {
   .detail-grid,
   .report-upload-grid,
   .simple-submit-layout,
+  .wholesaler-dashboard-grid,
   .split-grid,
   .auth-page,
   .public-hero,

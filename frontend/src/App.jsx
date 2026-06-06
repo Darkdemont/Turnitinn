@@ -11,6 +11,7 @@ import AdminOrders from './pages/admin/Orders';
 import AdminRevenue from './pages/admin/Revenue';
 import AdminStaff from './pages/admin/Staff';
 import AdminStaffEarnings from './pages/admin/StaffEarnings';
+import AdminWholesalers from './pages/admin/Wholesalers';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerMyOrders from './pages/customer/MyOrders';
 import CustomerNewOrder from './pages/customer/NewOrder';
@@ -20,12 +21,16 @@ import StaffDashboard from './pages/staff/Dashboard';
 import StaffEarnings from './pages/staff/Earnings';
 import StaffOrderDetails from './pages/staff/OrderDetails';
 import StaffOrders from './pages/staff/StaffOrders';
+import WholesalerDashboard from './pages/wholesaler/Dashboard';
+import WholesalerMyOrders from './pages/wholesaler/MyOrders';
+import WholesalerOrderDetails from './pages/wholesaler/OrderDetails';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Login expectedRole="customer" />} />
       <Route path="/login" element={<Login expectedRole="customer" />} />
+      <Route path="/wholesaler/login" element={<Login expectedRole="wholesaler" />} />
       <Route path="/staff/login" element={<Login expectedRole="staff" />} />
       <Route path="/admin/login" element={<Login expectedRole="admin" />} />
       <Route path="/register" element={<Register />} />
@@ -36,6 +41,14 @@ export default function App() {
           <Route path="/customer/new-order" element={<CustomerNewOrder />} />
           <Route path="/customer/orders" element={<CustomerMyOrders />} />
           <Route path="/customer/orders/:id" element={<CustomerOrderDetails />} />
+        </Route>
+      </Route>
+
+      <Route element={<ProtectedRoute role="wholesaler" />}>
+        <Route element={<Layout />}>
+          <Route path="/wholesaler/dashboard" element={<WholesalerDashboard />} />
+          <Route path="/wholesaler/orders" element={<WholesalerMyOrders />} />
+          <Route path="/wholesaler/orders/:id" element={<WholesalerOrderDetails />} />
         </Route>
       </Route>
 
@@ -56,6 +69,7 @@ export default function App() {
           <Route path="/admin/orders/:id" element={<AdminOrderDetails />} />
           <Route path="/admin/customers" element={<AdminCustomers />} />
           <Route path="/admin/staff" element={<AdminStaff />} />
+          <Route path="/admin/wholesalers" element={<AdminWholesalers />} />
           <Route path="/admin/staff-earnings" element={<AdminStaffEarnings />} />
           <Route path="/admin/revenue" element={<AdminRevenue />} />
           <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />

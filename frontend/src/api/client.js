@@ -1,9 +1,10 @@
 export const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
-const roles = new Set(['customer', 'staff', 'admin']);
+const roles = new Set(['customer', 'staff', 'admin', 'wholesaler']);
 
 export function getPortalRoleFromPath(pathname = window.location.pathname) {
+  if (pathname.startsWith('/wholesaler')) return 'wholesaler';
   if (pathname.startsWith('/staff')) return 'staff';
   if (pathname.startsWith('/admin')) return 'admin';
   return 'customer';

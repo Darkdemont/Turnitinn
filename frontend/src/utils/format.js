@@ -32,7 +32,12 @@ export function serviceLabel(value) {
 }
 
 export function roleHome(role) {
+  if (role === 'wholesaler') return '/wholesaler/dashboard';
   if (role === 'staff') return '/staff/dashboard';
   if (role === 'admin') return '/admin/dashboard';
   return '/customer/dashboard';
+}
+
+export function accountTypeLabel(value) {
+  return value === 'wholesaler' ? 'Wholesaler' : 'Customer';
 }

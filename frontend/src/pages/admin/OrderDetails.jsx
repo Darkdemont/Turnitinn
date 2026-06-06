@@ -6,7 +6,7 @@ import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { formatBytes, formatDate, formatLkr, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatBytes, formatDate, formatLkr, serviceLabel } from '../../utils/format';
 
 export default function AdminOrderDetails() {
   const { id } = useParams();
@@ -51,12 +51,16 @@ export default function AdminOrderDetails() {
         <div className="panel">
           <div className="panel-header"><h2>Order</h2></div>
           <dl className="detail-list">
+            <div><dt>Account</dt><dd>{accountTypeLabel(order.account_type)}</dd></div>
             <div><dt>Customer</dt><dd>{order.customer_name}</dd></div>
             <div><dt>Staff</dt><dd>{order.staff_name || '-'}</dd></div>
             <div><dt>Service</dt><dd>{serviceLabel(order.service_type)}</dd></div>
             <div><dt>Files</dt><dd>{order.file_count}</dd></div>
             <div><dt>Total</dt><dd>{formatLkr(order.total_amount_lkr)}</dd></div>
             <div><dt>Payment</dt><dd><StatusBadge value={order.payment_status} /></dd></div>
+            {order.account_type === 'wholesaler' ? (
+              <div><dt>Wholesaler billing</dt><dd><StatusBadge value={order.wholesaler_payment_status || 'unpaid'} /></dd></div>
+            ) : null}
             <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
             <div><dt>Created</dt><dd>{formatDate(order.created_at)}</dd></div>
           </dl>

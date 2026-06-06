@@ -6,7 +6,8 @@ const {
   OrderFile,
   ReportFile,
   StaffEarning,
-  User
+  User,
+  WholesalerPaymentBatch
 } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
@@ -29,14 +30,101 @@ const updateStaffSchema = z.object({
   status: z.enum(['active', 'inactive']).optional()
 });
 
+const createWholesalerSchema = z.object({
+  name: z.string().min(2).max(120),
+  email: z.string().email().max(180),
+  phone: z.string().max(40).optional().nullable(),
+  password: z.string().min(8).max(120),
+  status: z.enum(['active', 'inactive']).default('active'),
+  rate_per_file_lkr: z.coerce.number().min(0).default(0)
+});
+
+const updateWholesalerSchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  email: z.string().email().max(180).optional(),
+  phone: z.string().max(40).optional().nullable(),
+  password: z.string().min(8).max(120).optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  rate_per_file_lkr: z.coerce.number().min(0).optional()
+});
+
 const statusSchema = z.object({
   status: z.enum(['active', 'inactive'])
+});
+
+const clearWholesalerPaymentSchema = z.object({
+  note: z.string().max(500).optional().nullable()
 });
 
 async function userName(id) {
   if (!id) return null;
   const user = await User.findById(id).select('name email');
   return user ? { name: user.name, email: user.email } : null;
+}
+
+function accountPlain(user) {
+  const row = plain(user);
+  if (row) {
+    delete row.password_hash;
+  }
+  return row;
+}
+
+async function wholesalerBillingSummary(wholesalerId) {
+  const rows = await Order.aggregate([
+    {
+      $match: {
+        customer_id: parseObjectId(wholesalerId),
+        account_type: 'wholesaler'
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total_orders: { $sum: 1 },
+        submitted_file_count: { $sum: '$file_count' },
+        completed_file_count: {
+          $sum: { $cond: [{ $eq: ['$order_status', 'completed'] }, '$file_count', 0] }
+        },
+        unpaid_completed_file_count: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$order_status', 'completed'] },
+                  { $eq: ['$wholesaler_payment_status', 'unpaid'] }
+                ]
+              },
+              '$file_count',
+              0
+            ]
+          }
+        },
+        unpaid_amount_lkr: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$order_status', 'completed'] },
+                  { $eq: ['$wholesaler_payment_status', 'unpaid'] }
+                ]
+              },
+              { $multiply: ['$file_count', '$price_per_file_lkr'] },
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+
+  return {
+    total_orders: rows[0]?.total_orders || 0,
+    submitted_file_count: rows[0]?.submitted_file_count || 0,
+    completed_file_count: rows[0]?.completed_file_count || 0,
+    unpaid_completed_file_count: rows[0]?.unpaid_completed_file_count || 0,
+    unpaid_amount_lkr: rows[0]?.unpaid_amount_lkr || 0
+  };
 }
 
 async function orderWithNames(order) {
@@ -55,33 +143,65 @@ async function orderWithNames(order) {
 }
 
 const dashboard = asyncHandler(async (req, res) => {
-  const [totalOrders, totalCustomers, totalStaff, availableOrders, completedOrders, revenueRows, earningsRows, recent] =
-    await Promise.all([
-      Order.countDocuments(),
-      User.countDocuments({ role: 'customer' }),
-      User.countDocuments({ role: 'staff' }),
-      Order.countDocuments({ order_status: 'available' }),
-      Order.countDocuments({ order_status: 'completed' }),
-      Order.aggregate([
-        { $match: { payment_status: 'paid' } },
-        { $group: { _id: null, total_revenue_lkr: { $sum: '$total_amount_lkr' } } }
-      ]),
-      StaffEarning.aggregate([
-        { $match: { status: 'unpaid' } },
-        { $group: { _id: null, unpaid_staff_earnings_usd: { $sum: '$total_earning_usd' } } }
-      ]),
-      Order.find().sort({ created_at: -1 }).limit(8)
-    ]);
+  const [
+    totalOrders,
+    totalCustomers,
+    totalStaff,
+    totalWholesalers,
+    availableOrders,
+    completedOrders,
+    revenueRows,
+    earningsRows,
+    wholesalerDueRows,
+    recent
+  ] = await Promise.all([
+    Order.countDocuments(),
+    User.countDocuments({ role: 'customer' }),
+    User.countDocuments({ role: 'staff' }),
+    User.countDocuments({ role: 'wholesaler' }),
+    Order.countDocuments({ order_status: 'available' }),
+    Order.countDocuments({ order_status: 'completed' }),
+    Order.aggregate([
+      { $match: { payment_status: 'paid' } },
+      { $group: { _id: null, total_revenue_lkr: { $sum: '$total_amount_lkr' } } }
+    ]),
+    StaffEarning.aggregate([
+      { $match: { status: 'unpaid' } },
+      { $group: { _id: null, unpaid_staff_earnings_usd: { $sum: '$total_earning_usd' } } }
+    ]),
+    Order.aggregate([
+      {
+        $match: {
+          account_type: 'wholesaler',
+          order_status: 'completed',
+          wholesaler_payment_status: 'unpaid'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          unpaid_wholesaler_files: { $sum: '$file_count' },
+          unpaid_wholesaler_amount_lkr: {
+            $sum: { $multiply: ['$file_count', '$price_per_file_lkr'] }
+          }
+        }
+      }
+    ]),
+    Order.find().sort({ created_at: -1 }).limit(8)
+  ]);
 
   res.json({
     summary: {
       total_orders: totalOrders,
       total_customers: totalCustomers,
       total_staff: totalStaff,
+      total_wholesalers: totalWholesalers,
       available_orders: availableOrders,
       completed_orders: completedOrders,
       total_revenue_lkr: revenueRows[0]?.total_revenue_lkr || 0,
-      unpaid_staff_earnings_usd: earningsRows[0]?.unpaid_staff_earnings_usd || 0
+      unpaid_staff_earnings_usd: earningsRows[0]?.unpaid_staff_earnings_usd || 0,
+      unpaid_wholesaler_files: wholesalerDueRows[0]?.unpaid_wholesaler_files || 0,
+      unpaid_wholesaler_amount_lkr: wholesalerDueRows[0]?.unpaid_wholesaler_amount_lkr || 0
     },
     recent_orders: await Promise.all(recent.map(orderWithNames))
   });
@@ -136,7 +256,7 @@ const listCustomers = asyncHandler(async (req, res) => {
         }
       ]);
       return {
-        ...plain(customer),
+        ...accountPlain(customer),
         order_count: spend[0]?.order_count || 0,
         total_spend_lkr: spend[0]?.total_spend_lkr || 0
       };
@@ -165,7 +285,7 @@ const listStaff = asyncHandler(async (req, res) => {
       ]);
 
       return {
-        ...plain(member),
+        ...accountPlain(member),
         completed_orders: completedOrders,
         completed_file_count: earning[0]?.completed_file_count || 0,
         total_earning_usd: earning[0]?.total_earning_usd || 0
@@ -200,7 +320,7 @@ const createStaff = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  res.status(201).json({ staff: plain(staff) });
+  res.status(201).json({ staff: accountPlain(staff) });
 });
 
 const updateStaff = asyncHandler(async (req, res) => {
@@ -236,7 +356,7 @@ const updateStaff = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  res.json({ staff: plain(current) });
+  res.json({ staff: accountPlain(current) });
 });
 
 const updateStaffStatus = asyncHandler(async (req, res) => {
@@ -259,7 +379,164 @@ const updateStaffStatus = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  res.json({ staff: plain(staff) });
+  res.json({ staff: accountPlain(staff) });
+});
+
+const listWholesalers = asyncHandler(async (req, res) => {
+  const wholesalers = await User.find({ role: 'wholesaler' }).sort({ created_at: -1 });
+  const rows = await Promise.all(
+    wholesalers.map(async (wholesaler) => ({
+      ...accountPlain(wholesaler),
+      ...(await wholesalerBillingSummary(wholesaler.id))
+    }))
+  );
+
+  res.json({ wholesalers: rows });
+});
+
+const createWholesaler = asyncHandler(async (req, res) => {
+  const payload = createWholesalerSchema.parse(req.body);
+  const email = payload.email.toLowerCase();
+  const existing = await User.exists({ email });
+  if (existing) {
+    throw new HttpError(409, 'A user with this email already exists.');
+  }
+
+  const wholesaler = await User.create({
+    name: payload.name,
+    email,
+    phone: payload.phone || null,
+    password_hash: await bcrypt.hash(payload.password, 12),
+    role: 'wholesaler',
+    status: payload.status,
+    rate_per_file_lkr: payload.rate_per_file_lkr
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_created',
+    description: `${wholesaler.email} wholesaler account created by ${req.user.email}.`,
+    ipAddress: req.ip
+  });
+
+  res.status(201).json({ wholesaler: accountPlain(wholesaler) });
+});
+
+const updateWholesaler = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const payload = updateWholesalerSchema.parse(req.body);
+  const current = await User.findOne({ _id: wholesalerId, role: 'wholesaler' });
+  if (!current) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  if (payload.email !== undefined) {
+    const email = payload.email.toLowerCase();
+    const duplicate = await User.exists({ email, _id: { $ne: wholesalerId } });
+    if (duplicate) {
+      throw new HttpError(409, 'A user with this email already exists.');
+    }
+    current.email = email;
+  }
+  if (payload.name !== undefined) current.name = payload.name;
+  if (payload.phone !== undefined) current.phone = payload.phone || null;
+  if (payload.status !== undefined) current.status = payload.status;
+  if (payload.rate_per_file_lkr !== undefined) current.rate_per_file_lkr = payload.rate_per_file_lkr;
+  if (payload.password !== undefined) current.password_hash = await bcrypt.hash(payload.password, 12);
+
+  if (!Object.keys(payload).length) {
+    throw new HttpError(400, 'No updates provided.');
+  }
+
+  await current.save();
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_updated',
+    description: `${current.email} wholesaler account updated by ${req.user.email}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ wholesaler: accountPlain(current) });
+});
+
+const updateWholesalerStatus = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const payload = statusSchema.parse(req.body);
+  const wholesaler = await User.findOneAndUpdate(
+    { _id: wholesalerId, role: 'wholesaler' },
+    { status: payload.status },
+    { new: true }
+  );
+
+  if (!wholesaler) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_status_updated',
+    description: `${wholesaler.email} set to ${payload.status}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ wholesaler: accountPlain(wholesaler) });
+});
+
+const clearWholesalerPayment = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const payload = clearWholesalerPaymentSchema.parse(req.body);
+  const wholesaler = await User.findOne({ _id: wholesalerId, role: 'wholesaler' });
+  if (!wholesaler) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  const unpaidOrders = await Order.find({
+    customer_id: wholesalerId,
+    account_type: 'wholesaler',
+    order_status: 'completed',
+    wholesaler_payment_status: 'unpaid'
+  }).select('file_count price_per_file_lkr');
+
+  if (!unpaidOrders.length) {
+    throw new HttpError(400, 'No completed unpaid wholesaler files to clear.');
+  }
+
+  const fileCount = unpaidOrders.reduce((total, order) => total + Number(order.file_count || 0), 0);
+  const amountLkr = unpaidOrders.reduce(
+    (total, order) => total + Number(order.file_count || 0) * Number(order.price_per_file_lkr || 0),
+    0
+  );
+
+  const batch = await WholesalerPaymentBatch.create({
+    wholesaler_id: wholesalerId,
+    cleared_by_admin_id: req.user.id,
+    file_count: fileCount,
+    amount_lkr: amountLkr,
+    note: payload.note || null
+  });
+
+  await Order.updateMany(
+    { _id: { $in: unpaidOrders.map((order) => order._id) } },
+    {
+      wholesaler_payment_status: 'paid',
+      wholesaler_payment_batch_id: batch._id
+    }
+  );
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_payment_cleared',
+    description: `${fileCount} completed file(s) cleared for ${wholesaler.email}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({
+    batch: plain(batch),
+    wholesaler: {
+      ...accountPlain(wholesaler),
+      ...(await wholesalerBillingSummary(wholesaler.id))
+    }
+  });
 });
 
 const staffEarnings = asyncHandler(async (req, res) => {
@@ -373,13 +650,18 @@ const activityLogs = asyncHandler(async (req, res) => {
 module.exports = {
   activityLogs,
   createStaff,
+  createWholesaler,
+  clearWholesalerPayment,
   dashboard,
   getOrderDetails,
   listCustomers,
   listOrders,
   listStaff,
+  listWholesalers,
   revenueSummary,
   staffEarnings,
   updateStaff,
-  updateStaffStatus
+  updateStaffStatus,
+  updateWholesaler,
+  updateWholesalerStatus
 };

@@ -7,8 +7,9 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 180 },
     phone: { type: String, trim: true, maxlength: 40 },
     password_hash: { type: String, required: true },
-    role: { type: String, enum: ['customer', 'staff', 'admin'], required: true },
-    status: { type: String, enum: ['active', 'inactive'], default: 'active' }
+    role: { type: String, enum: ['customer', 'staff', 'admin', 'wholesaler'], required: true },
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    rate_per_file_lkr: { type: Number, min: 0, default: 0 }
   },
   schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })
 );
