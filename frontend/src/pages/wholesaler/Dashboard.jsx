@@ -4,7 +4,6 @@ import { apiRequest } from '../../api/client';
 import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
-import StatCard from '../../components/StatCard';
 import WholesalerUploadForm from '../../components/WholesalerUploadForm';
 import { formatLkr } from '../../utils/format';
 
@@ -57,15 +56,27 @@ export default function WholesalerDashboard() {
         actions={<Link className="ghost-button" to="/wholesaler/orders">My orders</Link>}
       />
 
-      <section className="stats-grid">
-        <StatCard label="Submitted files" value={summary.submitted_file_count} detail={`${summary.total_orders} orders`} />
-        <StatCard label="In progress" value={summary.in_progress_orders} detail={`${summary.available_orders} waiting`} />
-        <StatCard label="Completed files" value={summary.completed_file_count} />
-        <StatCard
-          label="Unpaid completed"
-          value={summary.unpaid_completed_file_count}
-          detail={formatLkr(summary.unpaid_amount_lkr)}
-        />
+      <section className="wholesaler-summary-strip" aria-label="Account summary">
+        <div>
+          <span>Submitted</span>
+          <strong>{summary.submitted_file_count}</strong>
+          <small>{summary.total_orders} orders</small>
+        </div>
+        <div>
+          <span>In progress</span>
+          <strong>{summary.in_progress_orders}</strong>
+          <small>{summary.available_orders} waiting</small>
+        </div>
+        <div>
+          <span>Completed</span>
+          <strong>{summary.completed_file_count}</strong>
+          <small>files</small>
+        </div>
+        <div className="billing-chip">
+          <span>Unpaid</span>
+          <strong>{summary.unpaid_completed_file_count}</strong>
+          <small>{formatLkr(summary.unpaid_amount_lkr)}</small>
+        </div>
       </section>
 
       <section className="wholesaler-dashboard-grid">
