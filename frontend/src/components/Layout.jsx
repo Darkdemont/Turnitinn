@@ -1,4 +1,5 @@
 import {
+  Calculator,
   ClipboardList,
   DollarSign,
   FileCheck2,
@@ -33,6 +34,7 @@ const navItems = {
   ],
   admin: [
     { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Accounts', path: '/admin/accounting', icon: Calculator },
     { label: 'Orders', path: '/admin/orders', icon: ClipboardList },
     { label: 'Customers', path: '/admin/customers', icon: Users },
     { label: 'Staff', path: '/admin/staff', icon: FileCheck2 },

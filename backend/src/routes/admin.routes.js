@@ -18,6 +18,10 @@ const {
   updateWholesalerStatus
 } = require('../controllers/adminController');
 const {
+  accountingSummary,
+  markStaffPaid
+} = require('../controllers/adminAccountingController');
+const {
   cleanupStorage,
   storageSummary
 } = require('../controllers/adminStorageController');
@@ -28,6 +32,8 @@ const router = express.Router();
 router.use(authenticate, authorize('admin'));
 
 router.get('/dashboard', dashboard);
+router.get('/accounting', accountingSummary);
+router.post('/accounting/staff/:id/mark-paid', markStaffPaid);
 router.get('/orders', listOrders);
 router.get('/orders/:id', getOrderDetails);
 router.get('/customers', listCustomers);

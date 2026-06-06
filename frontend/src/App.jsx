@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import AdminAccounting from './pages/admin/Accounting';
 import AdminActivityLogs from './pages/admin/ActivityLogs';
 import AdminCustomers from './pages/admin/Customers';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -66,6 +67,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="admin" />}>
         <Route element={<Layout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/accounting" element={<AdminAccounting />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders/:id" element={<AdminOrderDetails />} />
           <Route path="/admin/customers" element={<AdminCustomers />} />

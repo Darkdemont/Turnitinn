@@ -1331,6 +1331,44 @@ td {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.accounting-toolbar {
+  align-items: end;
+  grid-template-columns: 1fr auto;
+}
+
+.date-range-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(150px, 1fr)) auto;
+}
+
+.settlement-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settlement-grid div {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+.settlement-grid span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.settlement-grid strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .summary-strip {
   align-items: center;
   display: grid;
@@ -1431,8 +1469,11 @@ td {
   }
 
   .detail-grid,
+  .accounting-toolbar,
   .cleanup-action-grid,
+  .date-range-form,
   .report-upload-grid,
+  .settlement-grid,
   .simple-submit-layout,
   .wholesaler-dashboard-grid,
   .split-grid,
