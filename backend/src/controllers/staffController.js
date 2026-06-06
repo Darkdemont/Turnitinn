@@ -32,6 +32,13 @@ function fileExpiryDate() {
   return new Date(Date.now() + env.fileRetentionHours * 60 * 60 * 1000);
 }
 
+function activeFileFilter(orderId) {
+  return {
+    order_id: orderId,
+    deleted_at: { $exists: false }
+  };
+}
+
 const dashboard = asyncHandler(async (req, res) => {
   const [available, active, completed, earningsRows, availableDocs, activeDocs] = await Promise.all([
     Order.countDocuments({
@@ -75,10 +82,18 @@ const dashboard = asyncHandler(async (req, res) => {
   ]);
 
   const activeOrders = await Promise.all(
-    activeDocs.map(async (order) => ({
-      ...plain(order),
-      report_count: await ReportFile.countDocuments({ order_id: order._id })
-    }))
+    activeDocs.map(async (order) => {
+      const [files, reportCount] = await Promise.all([
+        OrderFile.find(activeFileFilter(order._id)).sort({ _id: 1 }),
+        ReportFile.countDocuments({ order_id: order._id })
+      ]);
+
+      return {
+        ...plain(order),
+        files: plainMany(files),
+        report_count: reportCount
+      };
+    })
   );
 
   res.json({
@@ -220,7 +235,7 @@ const getOrderDetails = asyncHandler(async (req, res) => {
   const canViewFiles = objectIdEquals(order.accepted_by_staff_id, req.user.id);
   const [files, reports] = await Promise.all([
     canViewFiles
-      ? OrderFile.find({ order_id: orderId }).sort({ _id: 1 })
+      ? OrderFile.find(activeFileFilter(orderId)).sort({ _id: 1 })
       : Promise.resolve([]),
     ReportFile.find({ order_id: orderId, uploaded_by_staff_id: req.user.id }).sort({ uploaded_at: -1 })
   ]);

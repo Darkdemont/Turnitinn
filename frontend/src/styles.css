@@ -807,6 +807,67 @@ td {
   font-weight: 700;
 }
 
+.customer-order-list,
+.compact-order-list {
+  display: grid;
+  gap: 10px;
+}
+
+.customer-order-item,
+.compact-order-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.customer-order-item {
+  grid-template-columns: minmax(220px, 1.2fr) minmax(130px, 0.5fr) minmax(260px, 1fr) auto;
+}
+
+.customer-order-main,
+.customer-order-status {
+  display: grid;
+  gap: 4px;
+}
+
+.customer-order-status small,
+.compact-order-row small {
+  color: var(--muted);
+}
+
+.customer-order-actions {
+  justify-self: end;
+}
+
+.compact-order-row {
+  grid-template-columns: minmax(190px, 1fr) 170px 90px auto;
+}
+
+.compact-order-row span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.staff-file-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.file-download-button {
+  justify-content: start;
+  min-width: 0;
+  white-space: normal;
+}
+
+.file-download-button span {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
 .status-badge {
   border-radius: 999px;
   display: inline-flex;
@@ -884,19 +945,24 @@ td {
   border-radius: 8px;
   box-shadow: var(--shadow);
   display: block;
-  padding: 18px;
+  overflow: hidden;
+  padding: 0;
 }
 
 .simple-submit-layout {
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr) 300px;
 }
 
 .submit-main,
 .submit-side {
   display: grid;
   gap: 14px;
+}
+
+.submit-main {
+  padding: 20px;
 }
 
 .submit-section-title {
@@ -914,7 +980,7 @@ td {
 .primary-file-drop {
   align-content: center;
   align-items: center;
-  background: #f8fbfc;
+  background: linear-gradient(180deg, #f8fbfc 0%, #eef8f6 100%);
   border: 2px dashed #88bab3;
   border-radius: 8px;
   color: var(--primary-strong);
@@ -922,7 +988,7 @@ td {
   display: grid;
   gap: 8px;
   justify-items: center;
-  min-height: 230px;
+  min-height: 180px;
   padding: 24px;
   text-align: center;
 }
@@ -953,9 +1019,8 @@ td {
 
 .submit-side {
   background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
+  border-left: 1px solid var(--border);
+  padding: 20px;
 }
 
 .package-list {
@@ -1274,6 +1339,21 @@ td {
   .public-hero,
   .public-pricing {
     grid-template-columns: 1fr;
+  }
+
+  .customer-order-item,
+  .compact-order-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .customer-order-actions {
+    justify-self: stretch;
+  }
+
+  .submit-side {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 
   .auth-aside {

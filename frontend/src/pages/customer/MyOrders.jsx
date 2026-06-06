@@ -2,13 +2,10 @@ import { PlusCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
+import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
-import OrderFileSummary from '../../components/OrderFileSummary';
 import PageHeader from '../../components/PageHeader';
-import ReportDownloadActions from '../../components/ReportDownloadActions';
-import StatusBadge from '../../components/StatusBadge';
-import { formatDate, formatLkr, serviceLabel } from '../../utils/format';
 
 export default function CustomerMyOrders() {
   const [orders, setOrders] = useState(null);
@@ -22,6 +19,25 @@ export default function CustomerMyOrders() {
 
   useEffect(() => {
     loadOrders().catch((err) => setError(err.message));
+
+    const intervalId = window.setInterval(() => {
+      loadOrders().catch(() => {});
+    }, 15000);
+
+    function refreshWhenVisible() {
+      if (!document.hidden) {
+        loadOrders().catch(() => {});
+      }
+    }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
+    };
   }, [loadOrders]);
 
   async function cancelOrder(orderId) {
@@ -54,62 +70,7 @@ export default function CustomerMyOrders() {
         {error ? <EmptyState title="Could not load orders" text={error} /> : null}
         {!orders && !error ? <div className="screen-loader">Loading orders...</div> : null}
         {orders?.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Files</th>
-                  <th>Service</th>
-                  <th>Total</th>
-                  <th>Payment</th>
-                  <th>Status</th>
-                  <th>Downloads</th>
-                  <th>Created</th>
-                  <th className="table-action-heading">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id}>
-                    <td>
-                      <OrderFileSummary files={order.files} fallbackCount={order.file_count} />
-                      <Link className="subtle-order-link" to={`/customer/orders/${order.id}`}>
-                        {order.order_number}
-                      </Link>
-                    </td>
-                    <td>{serviceLabel(order.service_type)}</td>
-                    <td>{formatLkr(order.total_amount_lkr)}</td>
-                    <td><StatusBadge value={order.payment_status} /></td>
-                    <td><StatusBadge value={order.order_status} /></td>
-                    <td>
-                      <ReportDownloadActions
-                        compact
-                        reports={order.reports}
-                        aiScore={order.ai_score}
-                        similarityScore={order.similarity_score}
-                      />
-                    </td>
-                    <td>{formatDate(order.created_at)}</td>
-                    <td className="table-action-cell">
-                      {order.order_status === 'available' ? (
-                        <button
-                          className="ghost-button small-inline danger"
-                          onClick={() => cancelOrder(order.id)}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <Link className="table-action-button secondary" to={`/customer/orders/${order.id}`}>
-                          Details
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CustomerOrderList orders={orders} onCancel={cancelOrder} />
         ) : null}
         {orders && !orders.length ? (
           <EmptyState

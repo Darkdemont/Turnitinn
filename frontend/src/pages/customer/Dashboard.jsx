@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
+import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
-import OrderFileSummary from '../../components/OrderFileSummary';
 import OrderUploadForm from '../../components/OrderUploadForm';
 import PageHeader from '../../components/PageHeader';
-import ReportDownloadActions from '../../components/ReportDownloadActions';
-import StatusBadge from '../../components/StatusBadge';
-import { formatDate } from '../../utils/format';
 
 export default function CustomerDashboard() {
   const [data, setData] = useState(null);
@@ -22,6 +19,25 @@ export default function CustomerDashboard() {
 
   useEffect(() => {
     loadDashboard().catch((err) => setError(err.message));
+
+    const intervalId = window.setInterval(() => {
+      loadDashboard().catch(() => {});
+    }, 15000);
+
+    function refreshWhenVisible() {
+      if (!document.hidden) {
+        loadDashboard().catch(() => {});
+      }
+    }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
+    };
   }, [loadDashboard]);
 
   async function cancelOrder(orderId) {
@@ -64,56 +80,7 @@ export default function CustomerDashboard() {
           <Link className="text-link" to="/customer/orders">View all</Link>
         </div>
         {data.recent_orders.length ? (
-          <div className="table-wrap">
-            <table className="customer-orders-table">
-              <thead>
-                <tr>
-                  <th>Files</th>
-                  <th>Status</th>
-                  <th>Reports</th>
-                  <th>Created</th>
-                  <th className="table-action-heading">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recent_orders.map((order) => (
-                  <tr key={order.id}>
-                    <td>
-                      <OrderFileSummary files={order.files} fallbackCount={order.file_count} />
-                      <Link className="subtle-order-link" to={`/customer/orders/${order.id}`}>
-                        {order.order_number}
-                      </Link>
-                    </td>
-                    <td><StatusBadge value={order.order_status} /></td>
-                    <td>
-                      <ReportDownloadActions
-                        compact
-                        reports={order.reports}
-                        aiScore={order.ai_score}
-                        similarityScore={order.similarity_score}
-                      />
-                    </td>
-                    <td>{formatDate(order.created_at)}</td>
-                    <td className="table-action-cell">
-                      {order.order_status === 'available' ? (
-                        <button
-                          className="ghost-button small-inline danger"
-                          onClick={() => cancelOrder(order.id)}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <Link className="table-action-button secondary" to={`/customer/orders/${order.id}`}>
-                          Details
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CustomerOrderList orders={data.recent_orders} onCancel={cancelOrder} />
         ) : (
           <EmptyState
             title="No orders yet"

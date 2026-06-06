@@ -1,7 +1,7 @@
-import { CheckCircle2, FileText } from 'lucide-react';
+import { CheckCircle2, Download, FileText } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiRequest } from '../../api/client';
+import { apiRequest, downloadProtectedFile } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
@@ -22,6 +22,25 @@ export default function StaffDashboard() {
 
   useEffect(() => {
     loadDashboard().catch((err) => setError(err.message));
+
+    const intervalId = window.setInterval(() => {
+      loadDashboard().catch(() => {});
+    }, 10000);
+
+    function refreshWhenVisible() {
+      if (!document.hidden) {
+        loadDashboard().catch(() => {});
+      }
+    }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
+    };
   }, [loadDashboard]);
 
   async function acceptOrder(orderId) {
@@ -36,6 +55,15 @@ export default function StaffDashboard() {
       await loadDashboard().catch(() => {});
     } finally {
       setAcceptingId(null);
+    }
+  }
+
+  async function downloadFile(file) {
+    setMessage('');
+    try {
+      await downloadProtectedFile(`/download/order-files/${file.id}`, file.original_file_name);
+    } catch (err) {
+      setMessage(err.message);
     }
   }
 
@@ -78,29 +106,17 @@ export default function StaffDashboard() {
           <Link className="text-link" to="/staff/available-orders">View all</Link>
         </div>
         {availableOrders.length ? (
-          <div className="work-card-grid">
+          <div className="compact-order-list">
             {availableOrders.map((order) => (
-              <article className="work-card" key={order.id}>
-                <div className="work-card-header">
+              <article className="compact-order-row" key={order.id}>
+                <div>
                   <strong>{order.order_number}</strong>
-                  <StatusBadge value={order.order_status} />
+                  <small>{formatDate(order.created_at)}</small>
                 </div>
-                <dl className="work-card-details">
-                  <div>
-                    <dt>Service</dt>
-                    <dd>{serviceLabel(order.service_type)}</dd>
-                  </div>
-                  <div>
-                    <dt>Files</dt>
-                    <dd>{order.file_count}</dd>
-                  </div>
-                  <div>
-                    <dt>Created</dt>
-                    <dd>{formatDate(order.created_at)}</dd>
-                  </div>
-                </dl>
+                <span>{serviceLabel(order.service_type)}</span>
+                <span>{order.file_count} file(s)</span>
                 <button
-                  className="primary-button"
+                  className="primary-button small"
                   disabled={acceptingId === order.id || summary.remaining_accept_slots <= 0}
                   onClick={() => acceptOrder(order.id)}
                   type="button"
@@ -143,8 +159,23 @@ export default function StaffDashboard() {
                     <dd>{order.report_count || 0}/2</dd>
                   </div>
                 </dl>
-                <Link className="primary-button" to={`/staff/orders/${order.id}`}>
-                  Open work
+                {order.files?.length ? (
+                  <div className="staff-file-actions">
+                    {order.files.map((file) => (
+                      <button
+                        className="ghost-button file-download-button"
+                        key={file.id}
+                        onClick={() => downloadFile(file)}
+                        type="button"
+                      >
+                        <Download size={16} aria-hidden="true" />
+                        <span>{file.original_file_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <Link className="secondary-button" to={`/staff/orders/${order.id}`}>
+                  Upload reports
                 </Link>
               </article>
             ))}

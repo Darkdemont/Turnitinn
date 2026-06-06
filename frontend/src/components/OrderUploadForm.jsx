@@ -24,6 +24,10 @@ const packages = [
   }
 ];
 
+function fileKey(file) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
 export default function OrderUploadForm({ availablePackages = [], onSubmitted }) {
   const hasPackageBalance = availablePackages.length > 0;
   const [mode, setMode] = useState(hasPackageBalance ? 'existing' : 'new');
@@ -64,6 +68,25 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
 
   function removeSelectedFile(index) {
     setFiles((currentFiles) => currentFiles.filter((_, fileIndex) => fileIndex !== index));
+    setFileInputKey((key) => key + 1);
+  }
+
+  function appendSelectedFiles(selectedFiles) {
+    setMessage('');
+    setMessageType('error');
+    setFiles((currentFiles) => {
+      const existingKeys = new Set(currentFiles.map(fileKey));
+      const nextFiles = [...currentFiles];
+      selectedFiles.forEach((file) => {
+        if (!existingKeys.has(fileKey(file))) {
+          nextFiles.push(file);
+        }
+      });
+      if (nextFiles.length > maxFileCount) {
+        setMessage(`You selected ${nextFiles.length} files. This submission allows ${maxFileCount}. Remove extra files before submitting.`);
+      }
+      return nextFiles;
+    });
     setFileInputKey((key) => key + 1);
   }
 
@@ -129,7 +152,7 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
               type="file"
               multiple
               accept=".pdf,.doc,.docx,.txt,.zip"
-              onChange={(event) => setFiles(Array.from(event.target.files || []))}
+              onChange={(event) => appendSelectedFiles(Array.from(event.target.files || []))}
             />
           </label>
 
