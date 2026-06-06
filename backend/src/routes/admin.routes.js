@@ -17,6 +17,10 @@ const {
   updateWholesaler,
   updateWholesalerStatus
 } = require('../controllers/adminController');
+const {
+  cleanupStorage,
+  storageSummary
+} = require('../controllers/adminStorageController');
 const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -39,5 +43,7 @@ router.post('/wholesalers/:id/clear-payment', clearWholesalerPayment);
 router.get('/staff-earnings', staffEarnings);
 router.get('/revenue-summary', revenueSummary);
 router.get('/activity-logs', activityLogs);
+router.get('/storage', storageSummary);
+router.post('/storage/cleanup', cleanupStorage);
 
 module.exports = router;

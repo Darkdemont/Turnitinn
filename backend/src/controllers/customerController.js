@@ -36,11 +36,17 @@ function activeFileFilter(orderId) {
   };
 }
 
+function fileHistoryFilter(orderId) {
+  return {
+    order_id: orderId
+  };
+}
+
 async function customerOrderSummary(order) {
   const [packageNumber, files, reports] = await Promise.all([
     packageNumberFor(order.customer_package_id),
-    OrderFile.find(activeFileFilter(order._id)).sort({ _id: 1 }),
-    ReportFile.find(activeFileFilter(order._id)).sort({ uploaded_at: -1 })
+    OrderFile.find(fileHistoryFilter(order._id)).sort({ _id: 1 }),
+    ReportFile.find(fileHistoryFilter(order._id)).sort({ uploaded_at: -1 })
   ]);
 
   return {
@@ -246,8 +252,8 @@ const getOrderDetails = asyncHandler(async (req, res) => {
   }
 
   const [files, reports, packageNumber, staff] = await Promise.all([
-    OrderFile.find(activeFileFilter(orderId)).sort({ _id: 1 }),
-    ReportFile.find(activeFileFilter(orderId)).sort({ uploaded_at: -1 }),
+    OrderFile.find(fileHistoryFilter(orderId)).sort({ _id: 1 }),
+    ReportFile.find(fileHistoryFilter(orderId)).sort({ uploaded_at: -1 }),
     packageNumberFor(order.customer_package_id),
     order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
   ]);

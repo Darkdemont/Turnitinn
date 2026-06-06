@@ -12,17 +12,16 @@ function fileExpiryDate() {
   return new Date(Date.now() + env.fileRetentionHours * 60 * 60 * 1000);
 }
 
-function activeFileFilter(orderId) {
+function fileHistoryFilter(orderId) {
   return {
-    order_id: orderId,
-    deleted_at: { $exists: false }
+    order_id: orderId
   };
 }
 
 async function orderSummary(order) {
   const [files, reports] = await Promise.all([
-    OrderFile.find(activeFileFilter(order._id)).sort({ _id: 1 }),
-    ReportFile.find(activeFileFilter(order._id)).sort({ uploaded_at: -1 })
+    OrderFile.find(fileHistoryFilter(order._id)).sort({ _id: 1 }),
+    ReportFile.find(fileHistoryFilter(order._id)).sort({ uploaded_at: -1 })
   ]);
 
   return {
@@ -188,8 +187,8 @@ const getOrderDetails = asyncHandler(async (req, res) => {
   }
 
   const [files, reports, staff] = await Promise.all([
-    OrderFile.find(activeFileFilter(orderId)).sort({ _id: 1 }),
-    ReportFile.find(activeFileFilter(orderId)).sort({ uploaded_at: -1 }),
+    OrderFile.find(fileHistoryFilter(orderId)).sort({ _id: 1 }),
+    ReportFile.find(fileHistoryFilter(orderId)).sort({ uploaded_at: -1 }),
     order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
   ]);
 

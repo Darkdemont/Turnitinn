@@ -1325,6 +1325,12 @@ td {
   margin: 0;
 }
 
+.cleanup-action-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .summary-strip {
   align-items: center;
   display: grid;
@@ -1425,6 +1431,7 @@ td {
   }
 
   .detail-grid,
+  .cleanup-action-grid,
   .report-upload-grid,
   .simple-submit-layout,
   .wholesaler-dashboard-grid,

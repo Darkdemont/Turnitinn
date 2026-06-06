@@ -59,19 +59,22 @@ export default function ReportDownloadActions({
 
   return (
     <div className={`report-actions ${compact ? 'compact' : ''}`}>
-      {actions.map(({ icon: Icon, label, report, score, type }) => (
-        <button
-          className="report-download-button"
-          disabled={!report}
-          key={type}
-          onClick={() => report && download(report)}
-          type="button"
-        >
-          {report ? <Download size={15} aria-hidden="true" /> : <Icon size={15} aria-hidden="true" />}
-          <span>{label}</span>
-          {score ? <small>{score}</small> : null}
-        </button>
-      ))}
+      {actions.map(({ icon: Icon, label, report, score, type }) => {
+        const expired = Boolean(report?.deleted_at);
+        return (
+          <button
+            className="report-download-button"
+            disabled={!report || expired}
+            key={type}
+            onClick={() => report && !expired && download(report)}
+            type="button"
+          >
+            {report && !expired ? <Download size={15} aria-hidden="true" /> : <Icon size={15} aria-hidden="true" />}
+            <span>{expired ? `${label} expired` : label}</span>
+            {score ? <small>{score}</small> : null}
+          </button>
+        );
+      })}
       {message ? <small className="inline-error">{message}</small> : null}
     </div>
   );

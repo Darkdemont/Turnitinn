@@ -3,6 +3,7 @@ import {
   DollarSign,
   FileCheck2,
   FileText,
+  HardDrive,
   LayoutDashboard,
   LogOut,
   PlusCircle,
@@ -38,6 +39,7 @@ const navItems = {
     { label: 'Wholesalers', path: '/admin/wholesalers', icon: Users },
     { label: 'Earnings', path: '/admin/staff-earnings', icon: DollarSign },
     { label: 'Revenue', path: '/admin/revenue', icon: Receipt },
+    { label: 'Storage', path: '/admin/storage', icon: HardDrive },
     { label: 'Logs', path: '/admin/activity-logs', icon: ScrollText }
   ]
 };

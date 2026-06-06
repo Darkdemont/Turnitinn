@@ -11,6 +11,7 @@ import AdminOrders from './pages/admin/Orders';
 import AdminRevenue from './pages/admin/Revenue';
 import AdminStaff from './pages/admin/Staff';
 import AdminStaffEarnings from './pages/admin/StaffEarnings';
+import AdminStorage from './pages/admin/Storage';
 import AdminWholesalers from './pages/admin/Wholesalers';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerMyOrders from './pages/customer/MyOrders';
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/admin/wholesalers" element={<AdminWholesalers />} />
           <Route path="/admin/staff-earnings" element={<AdminStaffEarnings />} />
           <Route path="/admin/revenue" element={<AdminRevenue />} />
+          <Route path="/admin/storage" element={<AdminStorage />} />
           <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
         </Route>
       </Route>

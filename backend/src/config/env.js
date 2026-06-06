@@ -29,6 +29,6 @@ module.exports = {
   maxFileSizeMb: numberFromEnv('MAX_FILE_SIZE_MB', 20),
   maxFilesPerOrder: numberFromEnv('MAX_FILES_PER_ORDER', 20),
   staffMaxActiveOrders: numberFromEnv('STAFF_MAX_ACTIVE_ORDERS', 3),
-  fileRetentionHours: numberFromEnv('FILE_RETENTION_HOURS', 24),
+  fileRetentionHours: numberFromEnv('FILE_RETENTION_HOURS', 48),
   fileCleanupIntervalMinutes: numberFromEnv('FILE_CLEANUP_INTERVAL_MINUTES', 60)
 };
