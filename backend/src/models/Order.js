@@ -23,7 +23,9 @@ const orderSchema = new Schema(
     },
     accepted_by_staff_id: { type: Types.ObjectId, ref: 'User' },
     accepted_at: Date,
-    completed_at: Date
+    completed_at: Date,
+    ai_score: { type: Number, min: 0, max: 100 },
+    similarity_score: { type: Number, min: 0, max: 100 }
   },
   schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })
 );

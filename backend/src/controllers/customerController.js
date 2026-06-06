@@ -8,7 +8,7 @@ const { logActivity } = require('../utils/activityLogger');
 const { generateOrderNumber } = require('../utils/orderNumber');
 const { generatePackageNumber } = require('../utils/packageNumber');
 const { plain, plainMany, parseObjectId } = require('../utils/mongo');
-const { removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
+const { removeStoredFile, removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
 const { notifyRole } = require('../utils/notificationService');
 
 const createOrderSchema = z.object({
@@ -27,6 +27,29 @@ async function packageNumberFor(packageId) {
   if (!packageId) return null;
   const row = await CustomerPackage.findById(packageId).select('package_number');
   return row?.package_number || null;
+}
+
+function activeFileFilter(orderId) {
+  return {
+    order_id: orderId,
+    deleted_at: { $exists: false }
+  };
+}
+
+async function customerOrderSummary(order) {
+  const [packageNumber, files, reports] = await Promise.all([
+    packageNumberFor(order.customer_package_id),
+    OrderFile.find(activeFileFilter(order._id)).sort({ _id: 1 }),
+    ReportFile.find(activeFileFilter(order._id)).sort({ uploaded_at: -1 })
+  ]);
+
+  return {
+    ...plain(order),
+    package_number: packageNumber,
+    files: plainMany(files),
+    reports: plainMany(reports),
+    report_count: reports.length
+  };
 }
 
 const dashboard = asyncHandler(async (req, res) => {
@@ -49,10 +72,10 @@ const dashboard = asyncHandler(async (req, res) => {
         }
       }
     ]),
-    Order.find({ customer_id: userId })
+    Order.find({ customer_id: userId, order_status: { $ne: 'cancelled' } })
       .sort({ created_at: -1 })
       .limit(5)
-      .select('order_number service_type file_count total_amount_lkr payment_status order_status created_at customer_package_id'),
+      .select('order_number service_type file_count total_amount_lkr payment_status order_status created_at customer_package_id ai_score similarity_score'),
     CustomerPackage.find({
       customer_id: userId,
       payment_status: 'paid',
@@ -61,12 +84,7 @@ const dashboard = asyncHandler(async (req, res) => {
     }).sort({ created_at: -1 })
   ]);
 
-  const recent_orders = await Promise.all(
-    recentDocs.map(async (order) => ({
-      ...plain(order),
-      package_number: await packageNumberFor(order.customer_package_id)
-    }))
-  );
+  const recent_orders = await Promise.all(recentDocs.map(customerOrderSummary));
 
   res.json({
     summary: summaryRows[0] || {
@@ -216,13 +234,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
 const listOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ customer_id: req.user.id }).sort({ created_at: -1 });
-  const rows = await Promise.all(
-    orders.map(async (order) => ({
-      ...plain(order),
-      package_number: await packageNumberFor(order.customer_package_id),
-      report_count: await ReportFile.countDocuments({ order_id: order._id })
-    }))
-  );
+  const rows = await Promise.all(orders.map(customerOrderSummary));
   res.json({ orders: rows });
 });
 
@@ -234,8 +246,8 @@ const getOrderDetails = asyncHandler(async (req, res) => {
   }
 
   const [files, reports, packageNumber, staff] = await Promise.all([
-    OrderFile.find({ order_id: orderId }).sort({ _id: 1 }),
-    ReportFile.find({ order_id: orderId }).sort({ uploaded_at: -1 }),
+    OrderFile.find(activeFileFilter(orderId)).sort({ _id: 1 }),
+    ReportFile.find(activeFileFilter(orderId)).sort({ uploaded_at: -1 }),
     packageNumberFor(order.customer_package_id),
     order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
   ]);
@@ -251,7 +263,51 @@ const getOrderDetails = asyncHandler(async (req, res) => {
   });
 });
 
+const cancelOrder = asyncHandler(async (req, res) => {
+  const orderId = parseObjectId(req.params.id);
+  const order = await Order.findOne({ _id: orderId, customer_id: req.user.id });
+  if (!order) {
+    throw new HttpError(404, 'Order not found.');
+  }
+  if (order.order_status !== 'available') {
+    throw new HttpError(400, 'Only orders not yet accepted by staff can be cancelled.');
+  }
+
+  const files = await OrderFile.find(activeFileFilter(orderId));
+  await Promise.all(files.map((file) => removeStoredFile(file.file_path)));
+  await OrderFile.updateMany(
+    activeFileFilter(orderId),
+    { deleted_at: new Date(), delete_reason: 'customer_cancelled' }
+  );
+
+  if (order.customer_package_id) {
+    const customerPackage = await CustomerPackage.findById(order.customer_package_id);
+    if (customerPackage) {
+      customerPackage.used_file_count = Math.max(
+        0,
+        Number(customerPackage.used_file_count || 0) - Number(order.file_count || 0)
+      );
+      customerPackage.status = customerPackage.used_file_count >= customerPackage.package_file_count ? 'used' : 'active';
+      await customerPackage.save();
+    }
+  }
+
+  order.order_status = 'cancelled';
+  await order.save();
+
+  await logActivity({
+    userId: req.user.id,
+    orderId: order.id,
+    action: 'order_cancelled',
+    description: `${order.order_number} cancelled by customer before staff accepted it.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ order: await customerOrderSummary(order) });
+});
+
 module.exports = {
+  cancelOrder,
   createOrder,
   dashboard,
   getOrderDetails,

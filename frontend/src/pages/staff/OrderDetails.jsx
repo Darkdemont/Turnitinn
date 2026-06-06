@@ -15,6 +15,10 @@ export default function StaffOrderDetails() {
     similarity: null,
     ai: null
   });
+  const [reportMeta, setReportMeta] = useState({
+    similarity_score: '',
+    ai_score: ''
+  });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -70,12 +74,19 @@ export default function StaffOrderDetails() {
     const body = new FormData();
     body.append('reports', reportUploads.similarity);
     body.append('reports', reportUploads.ai);
+    if (reportMeta.similarity_score !== '') {
+      body.append('similarity_score', reportMeta.similarity_score);
+    }
+    if (reportMeta.ai_score !== '') {
+      body.append('ai_score', reportMeta.ai_score);
+    }
     try {
       await apiRequest(`/staff/orders/${id}/reports`, {
         method: 'POST',
         body
       });
       setReportUploads({ similarity: null, ai: null });
+      setReportMeta({ similarity_score: '', ai_score: '' });
       await loadOrder();
       setMessage('Reports uploaded.');
     } catch (error) {
@@ -132,6 +143,8 @@ export default function StaffOrderDetails() {
             <div><dt>Service</dt><dd>{serviceLabel(order.service_type)}</dd></div>
             <div><dt>Files</dt><dd>{order.file_count}</dd></div>
             <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
+            <div><dt>AI score</dt><dd>{order.ai_score ?? '-'}</dd></div>
+            <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
             <div><dt>Accepted</dt><dd>{formatDate(order.accepted_at)}</dd></div>
             <div><dt>Completed</dt><dd>{formatDate(order.completed_at)}</dd></div>
           </dl>
@@ -212,6 +225,42 @@ export default function StaffOrderDetails() {
                       ai: event.target.files?.[0] || null
                     })
                   }
+                />
+              </label>
+            </div>
+            <div className="report-upload-grid">
+              <label>
+                Similarity %
+                <input
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  type="number"
+                  value={reportMeta.similarity_score}
+                  onChange={(event) =>
+                    setReportMeta({
+                      ...reportMeta,
+                      similarity_score: event.target.value
+                    })
+                  }
+                  placeholder="Optional"
+                />
+              </label>
+              <label>
+                AI %
+                <input
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  type="number"
+                  value={reportMeta.ai_score}
+                  onChange={(event) =>
+                    setReportMeta({
+                      ...reportMeta,
+                      ai_score: event.target.value
+                    })
+                  }
+                  placeholder="Optional"
                 />
               </label>
             </div>

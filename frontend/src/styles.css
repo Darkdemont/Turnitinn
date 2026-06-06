@@ -702,6 +702,111 @@ td {
   border-color: var(--primary-strong);
 }
 
+.table-action-button.secondary {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.table-action-button.secondary:hover {
+  background: var(--surface-alt);
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+.ghost-button.small-inline {
+  font-size: 0.88rem;
+  min-height: 38px;
+  padding: 7px 10px;
+  width: auto;
+}
+
+.ghost-button.danger {
+  border-color: #f4b4ae;
+  color: var(--danger);
+}
+
+.ghost-button.danger:hover {
+  background: var(--danger-bg);
+}
+
+.customer-orders-table {
+  min-width: 980px;
+}
+
+.file-name-stack {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+}
+
+.file-name-stack span {
+  font-weight: 750;
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+
+.file-name-stack small,
+.subtle-order-link {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.subtle-order-link {
+  display: inline-block;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.subtle-order-link:hover {
+  color: var(--accent);
+}
+
+.report-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-actions.compact {
+  min-width: 260px;
+}
+
+.report-download-button {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 10px;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.report-download-button:hover:not(:disabled) {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+.report-download-button small {
+  background: var(--surface-alt);
+  border-radius: 999px;
+  color: var(--primary-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
+.inline-error {
+  color: var(--danger);
+  flex-basis: 100%;
+  font-weight: 700;
+}
+
 .status-badge {
   border-radius: 999px;
   display: inline-flex;
@@ -1009,6 +1114,15 @@ td {
   display: block;
 }
 
+.selectable-file-row {
+  align-items: center;
+}
+
+.report-detail-list .report-actions {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
 .work-card-grid {
   display: grid;
   gap: 14px;
@@ -1235,6 +1349,18 @@ td {
   .primary-button,
   .secondary-button,
   .ghost-button {
+    width: 100%;
+  }
+
+  .ghost-button.small-inline,
+  .report-download-button,
+  .table-action-button {
+    width: 100%;
+  }
+
+  .report-actions,
+  .report-actions.compact {
+    min-width: 0;
     width: 100%;
   }
 

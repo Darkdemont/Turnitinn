@@ -1,6 +1,5 @@
 import { UploadCloud } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/client';
 import { formatBytes, formatLkr } from '../utils/format';
 import FormMessage from './FormMessage';
@@ -25,8 +24,7 @@ const packages = [
   }
 ];
 
-export default function OrderUploadForm({ availablePackages = [] }) {
-  const navigate = useNavigate();
+export default function OrderUploadForm({ availablePackages = [], onSubmitted }) {
   const hasPackageBalance = availablePackages.length > 0;
   const [mode, setMode] = useState(hasPackageBalance ? 'existing' : 'new');
   const [selectedPackage, setSelectedPackage] = useState(packages[0]);
@@ -34,10 +32,15 @@ export default function OrderUploadForm({ availablePackages = [] }) {
     availablePackages[0]?.id || ''
   );
   const [files, setFiles] = useState([]);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('error');
   const [submitting, setSubmitting] = useState(false);
 
   const selectedExistingPackage = availablePackages.find(
+    (item) => Number(item.id) === Number(selectedExistingPackageId)
+  );
+  const selectedExistingPackageAvailable = availablePackages.some(
     (item) => Number(item.id) === Number(selectedExistingPackageId)
   );
   const maxFileCount =
@@ -54,14 +57,20 @@ export default function OrderUploadForm({ availablePackages = [] }) {
     if (!hasPackageBalance && mode === 'existing') {
       setMode('new');
     }
-    if (hasPackageBalance && !selectedExistingPackageId) {
+    if (hasPackageBalance && (!selectedExistingPackageId || !selectedExistingPackageAvailable)) {
       setSelectedExistingPackageId(availablePackages[0].id);
     }
-  }, [availablePackages, hasPackageBalance, mode, selectedExistingPackageId]);
+  }, [availablePackages, hasPackageBalance, mode, selectedExistingPackageAvailable, selectedExistingPackageId]);
+
+  function removeSelectedFile(index) {
+    setFiles((currentFiles) => currentFiles.filter((_, fileIndex) => fileIndex !== index));
+    setFileInputKey((key) => key + 1);
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setMessage('');
+    setMessageType('error');
     if (!files.length) {
       setMessage('Select at least one assignment file.');
       return;
@@ -86,8 +95,13 @@ export default function OrderUploadForm({ availablePackages = [] }) {
         method: 'POST',
         body
       });
-      navigate(`/customer/orders/${data.order.id}`);
+      setFiles([]);
+      setFileInputKey((key) => key + 1);
+      setMessageType('success');
+      setMessage(`${data.order.order_number} submitted. You can upload another file now.`);
+      await onSubmitted?.(data);
     } catch (error) {
+      setMessageType('error');
       setMessage(error.message);
     } finally {
       setSubmitting(false);
@@ -111,6 +125,7 @@ export default function OrderUploadForm({ availablePackages = [] }) {
             <strong>Choose assignment files</strong>
             <span>{files.length ? `${files.length} file(s) selected` : 'No files selected'}</span>
             <input
+              key={fileInputKey}
               type="file"
               multiple
               accept=".pdf,.doc,.docx,.txt,.zip"
@@ -120,10 +135,19 @@ export default function OrderUploadForm({ availablePackages = [] }) {
 
           {files.length ? (
             <div className="file-list compact-files">
-              {files.map((file) => (
-                <div className="file-row" key={`${file.name}-${file.size}`}>
-                  <span>{file.name}</span>
-                  <small>{formatBytes(file.size)}</small>
+              {files.map((file, index) => (
+                <div className="file-row selectable-file-row" key={`${file.name}-${file.size}-${index}`}>
+                  <div>
+                    <span>{file.name}</span>
+                    <small>{formatBytes(file.size)}</small>
+                  </div>
+                  <button
+                    className="ghost-button small-inline danger"
+                    onClick={() => removeSelectedFile(index)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>
@@ -206,7 +230,7 @@ export default function OrderUploadForm({ availablePackages = [] }) {
           <button className="primary-button submit-order-button" type="submit" disabled={submitting}>
             {submitting ? 'Submitting...' : mode === 'existing' ? 'Submit using balance' : 'Buy package & submit'}
           </button>
-          <FormMessage type="error">{message}</FormMessage>
+          <FormMessage type={messageType}>{message}</FormMessage>
         </aside>
       </div>
     </form>

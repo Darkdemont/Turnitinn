@@ -1,5 +1,6 @@
 const express = require('express');
 const {
+  cancelOrder,
   createOrder,
   dashboard,
   getOrderDetails,
@@ -16,6 +17,7 @@ router.use(authenticate, authorize('customer'));
 router.get('/dashboard', dashboard);
 router.get('/orders', listOrders);
 router.post('/orders', uploadLimiter, uploadOrderFiles, createOrder);
+router.patch('/orders/:id/cancel', cancelOrder);
 router.get('/orders/:id', getOrderDetails);
 
 module.exports = router;

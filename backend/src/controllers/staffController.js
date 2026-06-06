@@ -1,3 +1,4 @@
+const { z } = require('zod');
 const env = require('../config/env');
 const {
   Order,
@@ -15,13 +16,24 @@ const { notifyUser } = require('../utils/notificationService');
 
 const REQUIRED_REPORT_FILE_COUNT = 2;
 const ACTIVE_STAFF_STATUSES = ['accepted', 'checking', 'report_uploaded'];
+const REPORT_TYPES = ['similarity', 'ai'];
+
+const optionalPercentage = z.preprocess(
+  (value) => (value === '' || value === null || value === undefined ? undefined : value),
+  z.coerce.number().min(0).max(100).optional()
+);
+
+const reportMetadataSchema = z.object({
+  ai_score: optionalPercentage,
+  similarity_score: optionalPercentage
+});
 
 function fileExpiryDate() {
   return new Date(Date.now() + env.fileRetentionHours * 60 * 60 * 1000);
 }
 
 const dashboard = asyncHandler(async (req, res) => {
-  const [available, active, completed, earningsRows, recent] = await Promise.all([
+  const [available, active, completed, earningsRows, availableDocs, activeDocs] = await Promise.all([
     Order.countDocuments({
       order_status: 'available',
       payment_status: 'paid',
@@ -45,11 +57,29 @@ const dashboard = asyncHandler(async (req, res) => {
         }
       }
     ]),
-    Order.find({ accepted_by_staff_id: req.user.id })
+    Order.find({
+      order_status: 'available',
+      payment_status: 'paid',
+      accepted_by_staff_id: { $exists: false }
+    })
+      .sort({ created_at: 1 })
+      .limit(5)
+      .select('order_number service_type file_count order_status created_at'),
+    Order.find({
+      accepted_by_staff_id: req.user.id,
+      order_status: { $in: ACTIVE_STAFF_STATUSES }
+    })
       .sort({ updated_at: -1 })
       .limit(5)
       .select('order_number service_type file_count order_status accepted_at completed_at')
   ]);
+
+  const activeOrders = await Promise.all(
+    activeDocs.map(async (order) => ({
+      ...plain(order),
+      report_count: await ReportFile.countDocuments({ order_id: order._id })
+    }))
+  );
 
   res.json({
     summary: {
@@ -61,7 +91,9 @@ const dashboard = asyncHandler(async (req, res) => {
       total_completed_files: earningsRows[0]?.total_completed_files || 0,
       total_earning_usd: earningsRows[0]?.total_earning_usd || 0
     },
-    recent_orders: plainMany(recent)
+    available_orders: plainMany(availableDocs),
+    active_orders: activeOrders,
+    recent_orders: activeOrders
   });
 });
 
@@ -210,6 +242,7 @@ const uploadReport = asyncHandler(async (req, res) => {
       throw new HttpError(400, 'Upload at least one final report file.');
     }
 
+    const payload = reportMetadataSchema.parse(req.body);
     const order = await Order.findById(orderId);
     if (!order) {
       throw new HttpError(404, 'Order not found.');
@@ -227,15 +260,22 @@ const uploadReport = asyncHandler(async (req, res) => {
     const storedFiles = await storeUploadedFiles(order.order_number, uploadedFiles, 'reports');
     const expiresAt = fileExpiryDate();
     await ReportFile.insertMany(
-      storedFiles.map((file) => ({
+      storedFiles.map((file, index) => ({
         order_id: order._id,
         uploaded_by_staff_id: req.user.id,
+        report_type: REPORT_TYPES[index] || 'other',
         ...file,
         expires_at: expiresAt
       }))
     );
 
     order.order_status = 'report_uploaded';
+    if (payload.ai_score !== undefined) {
+      order.ai_score = payload.ai_score;
+    }
+    if (payload.similarity_score !== undefined) {
+      order.similarity_score = payload.similarity_score;
+    }
     await order.save();
 
     await logActivity({

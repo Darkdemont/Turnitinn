@@ -5,6 +5,7 @@ const reportFileSchema = new Schema(
   {
     order_id: { type: Types.ObjectId, ref: 'Order', required: true },
     uploaded_by_staff_id: { type: Types.ObjectId, ref: 'User', required: true },
+    report_type: { type: String, enum: ['similarity', 'ai', 'other'], default: 'other' },
     original_file_name: { type: String, required: true },
     stored_file_name: { type: String, required: true },
     file_path: { type: String, required: true },
