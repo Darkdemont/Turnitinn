@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { getSavedAuthRole } from './api/client';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/auth/Login';
@@ -26,11 +27,17 @@ import StaffOrders from './pages/staff/StaffOrders';
 import WholesalerDashboard from './pages/wholesaler/Dashboard';
 import WholesalerMyOrders from './pages/wholesaler/MyOrders';
 import WholesalerOrderDetails from './pages/wholesaler/OrderDetails';
+import { roleHome } from './utils/format';
+
+function PortalEntry() {
+  const savedRole = getSavedAuthRole();
+  return <Navigate to={savedRole ? roleHome(savedRole) : '/login'} replace />;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Login expectedRole="customer" />} />
+      <Route path="/" element={<PortalEntry />} />
       <Route path="/login" element={<Login expectedRole="customer" />} />
       <Route path="/wholesaler/login" element={<Login expectedRole="wholesaler" />} />
       <Route path="/staff/login" element={<Login expectedRole="staff" />} />
@@ -80,7 +87,7 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<PortalEntry />} />
     </Routes>
   );
 }

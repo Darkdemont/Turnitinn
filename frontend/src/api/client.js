@@ -1,7 +1,8 @@
 export const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
-const roles = new Set(['customer', 'staff', 'admin', 'wholesaler']);
+export const authRoles = ['customer', 'staff', 'wholesaler', 'admin'];
+const roles = new Set(authRoles);
 const authCookieMaxAgeSeconds = 60 * 60 * 24 * 365;
 
 export function getPortalRoleFromPath(pathname = window.location.pathname) {
@@ -79,6 +80,22 @@ function removeStoredValue(role, type) {
   removeCookie(key);
 }
 
+function getLastAuthRole() {
+  const role = safeLocalGet('turnit_last_role') || getCookie('turnit_last_role');
+  return roles.has(role) ? role : null;
+}
+
+function setLastAuthRole(role) {
+  if (!roles.has(role)) return;
+  safeLocalSet('turnit_last_role', role);
+  setCookie('turnit_last_role', role);
+}
+
+function removeLastAuthRole() {
+  safeLocalRemove('turnit_last_role');
+  removeCookie('turnit_last_role');
+}
+
 export function getToken(role = getPortalRoleFromPath()) {
   const token = getStoredValue(role, 'token');
   if (!token && role === 'customer') {
@@ -87,9 +104,19 @@ export function getToken(role = getPortalRoleFromPath()) {
   return token;
 }
 
+export function getSavedAuthRole() {
+  const lastRole = getLastAuthRole();
+  if (lastRole && getToken(lastRole) && getStoredUser(lastRole)) {
+    return lastRole;
+  }
+
+  return authRoles.find((role) => getToken(role) && getStoredUser(role)) || null;
+}
+
 export function setStoredAuth(token, user) {
   setStoredValue(user.role, 'token', token);
   setStoredValue(user.role, 'user', JSON.stringify(user));
+  setLastAuthRole(user.role);
   safeLocalRemove('turnit_token');
   safeLocalRemove('turnit_user');
   removeCookie('turnit_token');
@@ -99,6 +126,14 @@ export function setStoredAuth(token, user) {
 export function clearStoredAuth(role = getPortalRoleFromPath()) {
   removeStoredValue(role, 'token');
   removeStoredValue(role, 'user');
+  if (getLastAuthRole() === role) {
+    const nextRole = authRoles.find((candidate) => candidate !== role && getToken(candidate) && getStoredUser(candidate));
+    if (nextRole) {
+      setLastAuthRole(nextRole);
+    } else {
+      removeLastAuthRole();
+    }
+  }
   if (role === 'customer') {
     safeLocalRemove('turnit_token');
     safeLocalRemove('turnit_user');
