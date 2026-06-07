@@ -4,8 +4,6 @@ import { Link } from 'react-router-dom';
 import { apiRequest, downloadProtectedFile } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
-import PageHeader from '../../components/PageHeader';
-import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import { accountTypeLabel, formatDate, formatUsd, serviceLabel } from '../../utils/format';
 
@@ -14,6 +12,12 @@ export default function StaffDashboard() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [acceptingId, setAcceptingId] = useState(null);
+  const [downloadBusyId, setDownloadBusyId] = useState(null);
+  const [reportUploads, setReportUploads] = useState({});
+  const [reportMeta, setReportMeta] = useState({});
+  const [uploadBusyId, setUploadBusyId] = useState(null);
+  const [completeBusyId, setCompleteBusyId] = useState(null);
+  const [uploadResetKeys, setUploadResetKeys] = useState({});
 
   const loadDashboard = useCallback(async () => {
     const response = await apiRequest('/staff/dashboard');
@@ -48,8 +52,19 @@ export default function StaffDashboard() {
     setAcceptingId(orderId);
     try {
       await apiRequest(`/staff/orders/${orderId}/accept`, { method: 'POST' });
+      const accepted = await apiRequest(`/staff/orders/${orderId}`);
+      if (accepted.files?.length === 1) {
+        await downloadProtectedFile(
+          `/download/order-files/${accepted.files[0].id}`,
+          accepted.files[0].original_file_name
+        );
+      }
       await loadDashboard();
-      setMessage('Order accepted. Open it from My active work.');
+      setMessage(
+        accepted.files?.length === 1
+          ? 'Order accepted. File download started and upload slots are ready.'
+          : 'Order accepted. Download files from My active work.'
+      );
     } catch (err) {
       setMessage(err.message);
       await loadDashboard().catch(() => {});
@@ -58,12 +73,115 @@ export default function StaffDashboard() {
     }
   }
 
-  async function downloadFile(file) {
+  async function downloadFile(file, quiet = false) {
     setMessage('');
     try {
       await downloadProtectedFile(`/download/order-files/${file.id}`, file.original_file_name);
     } catch (err) {
+      if (!quiet) setMessage(err.message);
+      throw err;
+    }
+  }
+
+  async function downloadOrderFiles(order) {
+    if (!order.files?.length) return;
+    setMessage('');
+    setDownloadBusyId(order.id);
+    try {
+      for (const file of order.files) {
+        await downloadFile(file, true);
+      }
+      setMessage(order.files.length === 1 ? 'File download started.' : 'File downloads started.');
+    } catch (err) {
       setMessage(err.message);
+    } finally {
+      setDownloadBusyId(null);
+    }
+  }
+
+  function updateReportUpload(orderId, type, file) {
+    setReportUploads((current) => ({
+      ...current,
+      [orderId]: {
+        ...(current[orderId] || {}),
+        [type]: file
+      }
+    }));
+  }
+
+  function updateReportMeta(orderId, field, value) {
+    setReportMeta((current) => ({
+      ...current,
+      [orderId]: {
+        ...(current[orderId] || {}),
+        [field]: value
+      }
+    }));
+  }
+
+  function resetQuickUpload(orderId) {
+    setReportUploads((current) => ({
+      ...current,
+      [orderId]: { similarity: null, ai: null }
+    }));
+    setReportMeta((current) => ({
+      ...current,
+      [orderId]: { similarity_score: '', ai_score: '' }
+    }));
+    setUploadResetKeys((current) => ({
+      ...current,
+      [orderId]: (current[orderId] || 0) + 1
+    }));
+  }
+
+  async function uploadReports(event, orderId) {
+    event.preventDefault();
+    const uploads = reportUploads[orderId] || {};
+    const meta = reportMeta[orderId] || {};
+
+    if (!uploads.similarity || !uploads.ai) {
+      setMessage('Select both report files before uploading.');
+      return;
+    }
+
+    setMessage('');
+    setUploadBusyId(orderId);
+    const body = new FormData();
+    body.append('reports', uploads.similarity);
+    body.append('reports', uploads.ai);
+    if (meta.similarity_score !== undefined && meta.similarity_score !== '') {
+      body.append('similarity_score', meta.similarity_score);
+    }
+    if (meta.ai_score !== undefined && meta.ai_score !== '') {
+      body.append('ai_score', meta.ai_score);
+    }
+
+    try {
+      await apiRequest(`/staff/orders/${orderId}/reports`, {
+        method: 'POST',
+        body
+      });
+      resetQuickUpload(orderId);
+      await loadDashboard();
+      setMessage('Reports uploaded. You can mark the order completed now.');
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setUploadBusyId(null);
+    }
+  }
+
+  async function completeOrder(orderId) {
+    setMessage('');
+    setCompleteBusyId(orderId);
+    try {
+      await apiRequest(`/staff/orders/${orderId}/complete`, { method: 'PATCH' });
+      await loadDashboard();
+      setMessage('Order marked completed.');
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setCompleteBusyId(null);
     }
   }
 
@@ -75,119 +193,213 @@ export default function StaffDashboard() {
   const activeOrders = data.active_orders || data.recent_orders || [];
 
   return (
-    <>
-      <PageHeader
-        title="Staff Dashboard"
-        eyebrow="queue"
-        actions={
-          <Link className="primary-button" to="/staff/available-orders">
-            <FileText size={18} aria-hidden="true" />
-            Full queue
-          </Link>
-        }
-      />
-
-      <section className="stats-grid">
-        <StatCard label="Available orders" value={summary.available_orders} />
-        <StatCard
-          label="My active orders"
-          value={`${summary.my_active_orders}/${summary.max_active_orders || 3}`}
-          detail={`${summary.remaining_accept_slots ?? 0} slots free`}
-        />
-        <StatCard label="Completed orders" value={summary.my_completed_orders} />
-        <StatCard label="Earnings" value={formatUsd(summary.total_earning_usd)} detail={`${summary.total_completed_files} files`} />
-      </section>
-
-      <FormMessage type={message.includes('accepted') ? 'success' : 'error'}>{message}</FormMessage>
-
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Available orders</h2>
-          <Link className="text-link" to="/staff/available-orders">View all</Link>
+    <div className="staff-dashboard-page">
+      <section className="staff-dashboard-hero">
+        <div>
+          <span className="eyebrow">queue</span>
+          <h1>Staff Dashboard</h1>
         </div>
-        {availableOrders.length ? (
-          <div className="compact-order-list">
-            {availableOrders.map((order) => (
-              <article className="compact-order-row" key={order.id}>
-                <div>
-                  <strong>{order.order_number}</strong>
-                  <small>{accountTypeLabel(order.account_type)} - {formatDate(order.created_at)}</small>
-                </div>
-                <span>{serviceLabel(order.service_type)}</span>
-                <span>{order.file_count} file(s)</span>
-                <button
-                  className="primary-button small"
-                  disabled={acceptingId === order.id || summary.remaining_accept_slots <= 0}
-                  onClick={() => acceptOrder(order.id)}
-                  type="button"
-                >
-                  <CheckCircle2 size={18} aria-hidden="true" />
-                  {acceptingId === order.id ? 'Accepting...' : 'Accept order'}
-                </button>
-              </article>
-            ))}
+        <Link className="secondary-button staff-queue-link" to="/staff/available-orders">
+          <FileText size={18} aria-hidden="true" />
+          Full queue
+        </Link>
+
+        <div className="staff-mini-metrics" aria-label="Staff summary">
+          <div className="staff-mini-metric">
+            <span>Available</span>
+            <strong>{summary.available_orders}</strong>
           </div>
-        ) : (
-          <EmptyState title="No available orders" text="New paid customer submissions will appear here." />
-        )}
+          <div className="staff-mini-metric">
+            <span>Active</span>
+            <strong>{summary.my_active_orders}/{summary.max_active_orders || 3}</strong>
+            <small>{summary.remaining_accept_slots ?? 0} slots free</small>
+          </div>
+          <div className="staff-mini-metric">
+            <span>Completed</span>
+            <strong>{summary.my_completed_orders}</strong>
+          </div>
+          <div className="staff-mini-metric">
+            <span>Earnings</span>
+            <strong>{formatUsd(summary.total_earning_usd)}</strong>
+            <small>{summary.total_completed_files} files</small>
+          </div>
+        </div>
       </section>
 
-      <section className="panel">
-        <div className="panel-header">
-          <h2>My active work</h2>
-          <Link className="text-link" to="/staff/orders">View all</Link>
-        </div>
-        {activeOrders.length ? (
-          <div className="work-card-grid">
-            {activeOrders.map((order) => (
-              <article className="work-card" key={order.id}>
-                <div className="work-card-header">
-                  <strong>{order.order_number}</strong>
-                  <StatusBadge value={order.order_status} />
-                </div>
-                <dl className="work-card-details">
-                  <div>
-                    <dt>Account</dt>
-                    <dd>{accountTypeLabel(order.account_type)}</dd>
+      <FormMessage type={message.includes('accepted') || message.includes('started') || message.includes('uploaded') || message.includes('completed') ? 'success' : 'error'}>{message}</FormMessage>
+
+      <section className="staff-priority-grid">
+        <section className="panel staff-work-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Available orders</h2>
+              <span className="muted-label">Accept the next job from the queue.</span>
+            </div>
+            <Link className="text-link" to="/staff/available-orders">View all</Link>
+          </div>
+          {availableOrders.length ? (
+            <div className="queue-order-list">
+              {availableOrders.map((order) => (
+                <article className="queue-order-row" key={order.id}>
+                  <div className="queue-order-main">
+                    <strong>{order.order_number}</strong>
+                    <span>{accountTypeLabel(order.account_type)} - {formatDate(order.created_at)}</span>
                   </div>
-                  <div>
-                    <dt>Service</dt>
-                    <dd>{serviceLabel(order.service_type)}</dd>
-                  </div>
-                  <div>
-                    <dt>Files</dt>
-                    <dd>{order.file_count}</dd>
-                  </div>
-                  <div>
-                    <dt>Reports</dt>
-                    <dd>{order.report_count || 0}/2</dd>
-                  </div>
-                </dl>
-                {order.files?.length ? (
-                  <div className="staff-file-actions">
-                    {order.files.map((file) => (
+                  <span className="queue-service">{serviceLabel(order.service_type)}</span>
+                  <span className="queue-files">{order.file_count} file(s)</span>
+                  <button
+                    className="primary-button small"
+                    disabled={acceptingId === order.id || summary.remaining_accept_slots <= 0}
+                    onClick={() => acceptOrder(order.id)}
+                    type="button"
+                  >
+                    <CheckCircle2 size={18} aria-hidden="true" />
+                    {acceptingId === order.id ? 'Accepting...' : 'Accept'}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No available orders" text="New paid customer submissions will appear here." />
+          )}
+        </section>
+
+        <section className="panel staff-work-panel">
+          <div className="panel-header">
+            <div>
+              <h2>My active work</h2>
+              <span className="muted-label">Download files, upload reports, then complete.</span>
+            </div>
+            <Link className="text-link" to="/staff/orders">View all</Link>
+          </div>
+          {activeOrders.length ? (
+            <div className="active-work-list">
+              {activeOrders.map((order) => {
+                const uploads = reportUploads[order.id] || {};
+                const meta = reportMeta[order.id] || {};
+                const resetKey = uploadResetKeys[order.id] || 0;
+                const firstFileName = order.files?.[0]?.original_file_name;
+
+                return (
+                  <article className="active-work-item" key={order.id}>
+                    <div className="active-work-top">
+                      <div className="active-work-title">
+                        <strong>{firstFileName || order.order_number}</strong>
+                        <span>{order.order_number} - {order.file_count} file(s)</span>
+                      </div>
+                      <StatusBadge value={order.order_status} />
+                    </div>
+
+                    <div className="active-work-actions">
                       <button
-                        className="ghost-button file-download-button"
-                        key={file.id}
-                        onClick={() => downloadFile(file)}
+                        className="ghost-button small-inline"
+                        disabled={downloadBusyId === order.id || !order.files?.length}
+                        onClick={() => downloadOrderFiles(order)}
                         type="button"
                       >
                         <Download size={16} aria-hidden="true" />
-                        <span>{file.original_file_name}</span>
+                        {downloadBusyId === order.id ? 'Downloading...' : 'Download files'}
                       </button>
-                    ))}
-                  </div>
-                ) : null}
-                <Link className="secondary-button" to={`/staff/orders/${order.id}`}>
-                  Upload reports
-                </Link>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="No active work" text="Accepted orders stay here until completed." />
-        )}
+                      <Link className="secondary-button small-inline" to={`/staff/orders/${order.id}`}>
+                        Full work
+                      </Link>
+                    </div>
+
+                    <form className="quick-report-form" onSubmit={(event) => uploadReports(event, order.id)}>
+                      <div className="quick-report-grid">
+                        <label className="quick-report-slot">
+                          Similarity report
+                          <input
+                            key={`similarity-${order.id}-${resetKey}`}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt,.zip"
+                            onChange={(event) =>
+                              updateReportUpload(order.id, 'similarity', event.target.files?.[0] || null)
+                            }
+                          />
+                        </label>
+                        <label className="quick-report-slot">
+                          AI report
+                          <input
+                            key={`ai-${order.id}-${resetKey}`}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt,.zip"
+                            onChange={(event) =>
+                              updateReportUpload(order.id, 'ai', event.target.files?.[0] || null)
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="quick-score-grid">
+                        <label>
+                          Similarity %
+                          <input
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            type="number"
+                            value={meta.similarity_score || ''}
+                            onChange={(event) =>
+                              updateReportMeta(order.id, 'similarity_score', event.target.value)
+                            }
+                            placeholder="Optional"
+                          />
+                        </label>
+                        <label>
+                          AI %
+                          <input
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            type="number"
+                            value={meta.ai_score || ''}
+                            onChange={(event) => updateReportMeta(order.id, 'ai_score', event.target.value)}
+                            placeholder="Optional"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="quick-report-footer">
+                        <span className="muted-label">{order.report_count || 0}/2 reports uploaded</span>
+                        <div className="button-row compact">
+                          <button
+                            className="primary-button small"
+                            disabled={
+                              uploadBusyId === order.id ||
+                              (order.report_count || 0) >= 2 ||
+                              !uploads.similarity ||
+                              !uploads.ai
+                            }
+                            type="submit"
+                          >
+                            {(order.report_count || 0) >= 2
+                              ? 'Reports uploaded'
+                              : uploadBusyId === order.id
+                                ? 'Uploading...'
+                                : 'Upload reports'}
+                          </button>
+                          <button
+                            className="secondary-button small"
+                            disabled={completeBusyId === order.id || (order.report_count || 0) < 2}
+                            onClick={() => completeOrder(order.id)}
+                            type="button"
+                          >
+                            <CheckCircle2 size={16} aria-hidden="true" />
+                            {completeBusyId === order.id ? 'Completing...' : 'Complete'}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState title="No active work" text="Accepted orders stay here until completed." />
+          )}
+        </section>
       </section>
-    </>
+    </div>
   );
 }

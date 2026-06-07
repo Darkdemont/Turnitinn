@@ -109,9 +109,9 @@ export default function Layout() {
               <span className="muted-label">Signed in as</span>
               <strong>{user?.email}</strong>
             </div>
-            <button className="ghost-button topbar-logout" onClick={handleLogout}>
+            <button className="ghost-button topbar-logout" onClick={handleLogout} aria-label="Logout">
               <LogOut size={18} aria-hidden="true" />
-              Logout
+              <span>Logout</span>
             </button>
           </div>
         </header>
