@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
 import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
+import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 
 export default function WholesalerMyOrders() {
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadOrders = useCallback(async () => {
     const data = await apiRequest('/wholesaler/orders');
@@ -37,6 +39,19 @@ export default function WholesalerMyOrders() {
     };
   }, [loadOrders]);
 
+  async function cancelOrder(orderId) {
+    const ok = window.confirm('Cancel this wholesaler order before staff accepts it?');
+    if (!ok) return;
+    setMessage('');
+    try {
+      await apiRequest(`/wholesaler/orders/${orderId}/cancel`, { method: 'PATCH' });
+      await loadOrders();
+      setMessage('Order cancelled.');
+    } catch (cancelError) {
+      setMessage(cancelError.message);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -44,12 +59,13 @@ export default function WholesalerMyOrders() {
         eyebrow="wholesaler"
         actions={<Link className="primary-button" to="/wholesaler/dashboard">Submit files</Link>}
       />
+      <FormMessage type={message.includes('cancelled') ? 'success' : 'error'}>{message}</FormMessage>
 
       <section className="panel">
         {error ? <EmptyState title="Could not load orders" text={error} /> : null}
         {!orders && !error ? <div className="screen-loader">Loading orders...</div> : null}
         {orders?.length ? (
-          <CustomerOrderList basePath="/wholesaler/orders" orders={orders} />
+          <CustomerOrderList basePath="/wholesaler/orders" orders={orders} onCancel={cancelOrder} />
         ) : null}
         {orders && !orders.length ? (
           <EmptyState

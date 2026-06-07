@@ -4,6 +4,8 @@ const {
   ActivityLog,
   Order,
   OrderFile,
+  CustomerPackage,
+  Notification,
   ReportFile,
   StaffEarning,
   User,
@@ -12,6 +14,7 @@ const {
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { logActivity } = require('../utils/activityLogger');
+const { removeStoredFile } = require('../utils/fileStorage');
 const { parseObjectId, plain, plainMany } = require('../utils/mongo');
 
 const createStaffSchema = z.object({
@@ -56,6 +59,8 @@ const clearWholesalerPaymentSchema = z.object({
   note: z.string().max(500).optional().nullable()
 });
 
+const activeStaffStatuses = ['accepted', 'checking', 'report_uploaded'];
+
 async function userName(id) {
   if (!id) return null;
   const user = await User.findById(id).select('name email');
@@ -70,12 +75,123 @@ function accountPlain(user) {
   return row;
 }
 
+async function removeStoredFilesForRows(rows) {
+  let totalBytes = 0;
+  await Promise.all(
+    rows.map(async (file) => {
+      totalBytes += Number(file.file_size || 0);
+      if (!file.deleted_at) {
+        await removeStoredFile(file.file_path);
+      }
+    })
+  );
+  return totalBytes;
+}
+
+async function purgeOrderFiles(orderIds, reason) {
+  if (!orderIds.length) {
+    return {
+      order_file_count: 0,
+      report_file_count: 0,
+      cleared_bytes: 0
+    };
+  }
+
+  const [orderFiles, reportFiles] = await Promise.all([
+    OrderFile.find({ order_id: { $in: orderIds } }),
+    ReportFile.find({ order_id: { $in: orderIds } })
+  ]);
+
+  const clearedBytes =
+    (await removeStoredFilesForRows(orderFiles)) +
+    (await removeStoredFilesForRows(reportFiles));
+
+  await Promise.all([
+    OrderFile.deleteMany({ order_id: { $in: orderIds } }),
+    ReportFile.deleteMany({ order_id: { $in: orderIds } })
+  ]);
+
+  return {
+    order_file_count: orderFiles.length,
+    report_file_count: reportFiles.length,
+    cleared_bytes: clearedBytes,
+    reason
+  };
+}
+
+async function purgeReportFiles(filter) {
+  const reportFiles = await ReportFile.find(filter);
+  const clearedBytes = await removeStoredFilesForRows(reportFiles);
+  await ReportFile.deleteMany(filter);
+
+  return {
+    report_file_count: reportFiles.length,
+    cleared_bytes: clearedBytes
+  };
+}
+
+async function clearOwnerData({ ownerId, accountType, reason }) {
+  const orders = await Order.find({ customer_id: ownerId, account_type: accountType }).select('_id');
+  const orderIds = orders.map((order) => order._id);
+  const fileResult = await purgeOrderFiles(orderIds, reason);
+
+  const [ordersDeleted, earningsDeleted, notificationsDeleted, packagesDeleted, batchesDeleted] =
+    await Promise.all([
+      Order.deleteMany({ _id: { $in: orderIds } }),
+      StaffEarning.deleteMany({ order_id: { $in: orderIds } }),
+      Notification.deleteMany({
+        $or: [
+          { user_id: ownerId },
+          { order_id: { $in: orderIds } }
+        ]
+      }),
+      accountType === 'customer'
+        ? CustomerPackage.deleteMany({ customer_id: ownerId })
+        : Promise.resolve({ deletedCount: 0 }),
+      accountType === 'wholesaler'
+        ? WholesalerPaymentBatch.deleteMany({ wholesaler_id: ownerId })
+        : Promise.resolve({ deletedCount: 0 })
+    ]);
+
+  return {
+    orders_deleted: ordersDeleted.deletedCount || 0,
+    earnings_deleted: earningsDeleted.deletedCount || 0,
+    notifications_deleted: notificationsDeleted.deletedCount || 0,
+    packages_deleted: packagesDeleted.deletedCount || 0,
+    payment_batches_deleted: batchesDeleted.deletedCount || 0,
+    ...fileResult
+  };
+}
+
+async function staffResetSummary(staffId) {
+  const [completedOrders, earning] = await Promise.all([
+    Order.countDocuments({ accepted_by_staff_id: staffId, order_status: 'completed' }),
+    StaffEarning.aggregate([
+      { $match: { staff_id: parseObjectId(staffId) } },
+      {
+        $group: {
+          _id: null,
+          completed_file_count: { $sum: '$completed_file_count' },
+          total_earning_usd: { $sum: '$total_earning_usd' }
+        }
+      }
+    ])
+  ]);
+
+  return {
+    completed_orders: completedOrders,
+    completed_file_count: earning[0]?.completed_file_count || 0,
+    total_earning_usd: earning[0]?.total_earning_usd || 0
+  };
+}
+
 async function wholesalerBillingSummary(wholesalerId) {
   const rows = await Order.aggregate([
     {
       $match: {
         customer_id: parseObjectId(wholesalerId),
-        account_type: 'wholesaler'
+        account_type: 'wholesaler',
+        order_status: { $ne: 'cancelled' }
       }
     },
     {
@@ -266,29 +382,43 @@ const listCustomers = asyncHandler(async (req, res) => {
   res.json({ customers: rows });
 });
 
+const clearCustomerData = asyncHandler(async (req, res) => {
+  const customerId = parseObjectId(req.params.id);
+  const customer = await User.findOne({ _id: customerId, role: 'customer' });
+  if (!customer) {
+    throw new HttpError(404, 'Customer account not found.');
+  }
+
+  const result = await clearOwnerData({
+    ownerId: customerId,
+    accountType: 'customer',
+    reason: 'admin_customer_reset'
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'customer_data_cleared',
+    description: `${req.user.email} cleared customer data for ${customer.email}: ${result.orders_deleted} order(s).`,
+    ipAddress: req.ip
+  });
+
+  res.json({
+    result,
+    customer: {
+      ...accountPlain(customer),
+      order_count: 0,
+      total_spend_lkr: 0
+    }
+  });
+});
+
 const listStaff = asyncHandler(async (req, res) => {
   const staff = await User.find({ role: 'staff' }).sort({ created_at: -1 });
   const rows = await Promise.all(
     staff.map(async (member) => {
-      const [completedOrders, earning] = await Promise.all([
-        Order.countDocuments({ accepted_by_staff_id: member._id, order_status: 'completed' }),
-        StaffEarning.aggregate([
-          { $match: { staff_id: member._id } },
-          {
-            $group: {
-              _id: null,
-              completed_file_count: { $sum: '$completed_file_count' },
-              total_earning_usd: { $sum: '$total_earning_usd' }
-            }
-          }
-        ])
-      ]);
-
       return {
         ...accountPlain(member),
-        completed_orders: completedOrders,
-        completed_file_count: earning[0]?.completed_file_count || 0,
-        total_earning_usd: earning[0]?.total_earning_usd || 0
+        ...(await staffResetSummary(member._id))
       };
     })
   );
@@ -380,6 +510,82 @@ const updateStaffStatus = asyncHandler(async (req, res) => {
   });
 
   res.json({ staff: accountPlain(staff) });
+});
+
+const clearStaffData = asyncHandler(async (req, res) => {
+  const staffId = parseObjectId(req.params.id);
+  const staff = await User.findOne({ _id: staffId, role: 'staff' });
+  if (!staff) {
+    throw new HttpError(404, 'Staff member not found.');
+  }
+
+  const activeOrders = await Order.find({
+    accepted_by_staff_id: staffId,
+    order_status: { $in: activeStaffStatuses }
+  }).select('_id');
+  const completedOrders = await Order.find({
+    accepted_by_staff_id: staffId,
+    order_status: 'completed'
+  }).select('_id');
+
+  const activeOrderIds = activeOrders.map((order) => order._id);
+  const completedOrderIds = completedOrders.map((order) => order._id);
+  const reportResult = activeOrderIds.length
+    ? await purgeReportFiles({
+        order_id: { $in: activeOrderIds },
+        uploaded_by_staff_id: staffId
+      })
+    : { report_file_count: 0, cleared_bytes: 0 };
+
+  const [released, unassigned, earningsDeleted, notificationsDeleted] = await Promise.all([
+    Order.updateMany(
+      { _id: { $in: activeOrderIds } },
+      {
+        $set: { order_status: 'available' },
+        $unset: {
+          accepted_by_staff_id: '',
+          accepted_at: '',
+          ai_score: '',
+          similarity_score: ''
+        }
+      }
+    ),
+    Order.updateMany(
+      { _id: { $in: completedOrderIds } },
+      {
+        $unset: {
+          accepted_by_staff_id: '',
+          accepted_at: ''
+        }
+      }
+    ),
+    StaffEarning.deleteMany({ staff_id: staffId }),
+    Notification.deleteMany({ user_id: staffId })
+  ]);
+
+  const result = {
+    active_orders_released: released.modifiedCount || 0,
+    completed_orders_unassigned: unassigned.modifiedCount || 0,
+    earnings_deleted: earningsDeleted.deletedCount || 0,
+    notifications_deleted: notificationsDeleted.deletedCount || 0,
+    report_file_count: reportResult.report_file_count,
+    cleared_bytes: reportResult.cleared_bytes
+  };
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'staff_data_cleared',
+    description: `${req.user.email} cleared staff data for ${staff.email}: ${result.active_orders_released} active order(s) released, ${result.completed_orders_unassigned} completed order(s) unassigned.`,
+    ipAddress: req.ip
+  });
+
+  res.json({
+    result,
+    staff: {
+      ...accountPlain(staff),
+      ...(await staffResetSummary(staff.id))
+    }
+  });
 });
 
 const listWholesalers = asyncHandler(async (req, res) => {
@@ -539,6 +745,35 @@ const clearWholesalerPayment = asyncHandler(async (req, res) => {
   });
 });
 
+const clearWholesalerData = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const wholesaler = await User.findOne({ _id: wholesalerId, role: 'wholesaler' });
+  if (!wholesaler) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  const result = await clearOwnerData({
+    ownerId: wholesalerId,
+    accountType: 'wholesaler',
+    reason: 'admin_wholesaler_reset'
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_data_cleared',
+    description: `${req.user.email} cleared wholesaler data for ${wholesaler.email}: ${result.orders_deleted} order(s).`,
+    ipAddress: req.ip
+  });
+
+  res.json({
+    result,
+    wholesaler: {
+      ...accountPlain(wholesaler),
+      ...(await wholesalerBillingSummary(wholesaler.id))
+    }
+  });
+});
+
 const staffEarnings = asyncHandler(async (req, res) => {
   const staff = await User.find({ role: 'staff' }).sort({ name: 1 });
   const rows = await Promise.all(
@@ -649,6 +884,9 @@ const activityLogs = asyncHandler(async (req, res) => {
 
 module.exports = {
   activityLogs,
+  clearCustomerData,
+  clearStaffData,
+  clearWholesalerData,
   createStaff,
   createWholesaler,
   clearWholesalerPayment,

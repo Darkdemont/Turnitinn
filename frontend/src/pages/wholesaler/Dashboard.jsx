@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
 import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
+import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import WholesalerUploadForm from '../../components/WholesalerUploadForm';
 import { formatLkr } from '../../utils/format';
@@ -10,6 +11,7 @@ import { formatLkr } from '../../utils/format';
 export default function WholesalerDashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadDashboard = useCallback(async () => {
     const response = await apiRequest('/wholesaler/dashboard');
@@ -43,6 +45,19 @@ export default function WholesalerDashboard() {
     await loadDashboard();
   }
 
+  async function cancelOrder(orderId) {
+    const ok = window.confirm('Cancel this wholesaler order before staff accepts it?');
+    if (!ok) return;
+    setMessage('');
+    try {
+      await apiRequest(`/wholesaler/orders/${orderId}/cancel`, { method: 'PATCH' });
+      await loadDashboard();
+      setMessage('Order cancelled.');
+    } catch (cancelError) {
+      setMessage(cancelError.message);
+    }
+  }
+
   if (error) return <EmptyState title="Could not load wholesaler dashboard" text={error} />;
   if (!data) return <div className="screen-loader">Loading dashboard...</div>;
 
@@ -55,6 +70,7 @@ export default function WholesalerDashboard() {
         eyebrow="bulk submissions"
         actions={<Link className="ghost-button" to="/wholesaler/orders">My orders</Link>}
       />
+      <FormMessage type={message.includes('cancelled') ? 'success' : 'error'}>{message}</FormMessage>
 
       <section className="wholesaler-summary-strip" aria-label="Account summary">
         <div>
@@ -100,7 +116,7 @@ export default function WholesalerDashboard() {
           <Link className="text-link" to="/wholesaler/orders">View all</Link>
         </div>
         {data.recent_orders.length ? (
-          <CustomerOrderList basePath="/wholesaler/orders" orders={data.recent_orders} />
+          <CustomerOrderList basePath="/wholesaler/orders" orders={data.recent_orders} onCancel={cancelOrder} />
         ) : (
           <EmptyState title="No wholesaler orders yet" text="Upload files and staff will see them in the available queue." />
         )}

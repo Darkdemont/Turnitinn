@@ -5,7 +5,7 @@ const HttpError = require('../utils/httpError');
 const { logActivity } = require('../utils/activityLogger');
 const { generateOrderNumber } = require('../utils/orderNumber');
 const { parseObjectId, plain, plainMany } = require('../utils/mongo');
-const { removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
+const { removeStoredFile, removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
 const { notifyRole } = require('../utils/notificationService');
 
 function fileExpiryDate() {
@@ -15,6 +15,13 @@ function fileExpiryDate() {
 function fileHistoryFilter(orderId) {
   return {
     order_id: orderId
+  };
+}
+
+function activeFileFilter(orderId) {
+  return {
+    order_id: orderId,
+    deleted_at: { $exists: false }
   };
 }
 
@@ -61,7 +68,13 @@ const dashboard = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const [summaryRows, recentDocs, wholesaler, due] = await Promise.all([
     Order.aggregate([
-      { $match: { customer_id: parseObjectId(userId), account_type: 'wholesaler' } },
+      {
+        $match: {
+          customer_id: parseObjectId(userId),
+          account_type: 'wholesaler',
+          order_status: { $ne: 'cancelled' }
+        }
+      },
       {
         $group: {
           _id: null,
@@ -79,7 +92,7 @@ const dashboard = asyncHandler(async (req, res) => {
         }
       }
     ]),
-    Order.find({ customer_id: userId, account_type: 'wholesaler' })
+    Order.find({ customer_id: userId, account_type: 'wholesaler', order_status: { $ne: 'cancelled' } })
       .sort({ created_at: -1 })
       .limit(8),
     User.findById(userId).select('rate_per_file_lkr'),
@@ -175,6 +188,41 @@ const listOrders = asyncHandler(async (req, res) => {
   res.json({ orders: await Promise.all(orders.map(orderSummary)) });
 });
 
+const cancelOrder = asyncHandler(async (req, res) => {
+  const orderId = parseObjectId(req.params.id);
+  const order = await Order.findOne({
+    _id: orderId,
+    customer_id: req.user.id,
+    account_type: 'wholesaler'
+  });
+  if (!order) {
+    throw new HttpError(404, 'Order not found.');
+  }
+  if (order.order_status !== 'available') {
+    throw new HttpError(400, 'Only orders not yet accepted by staff can be cancelled.');
+  }
+
+  const files = await OrderFile.find(activeFileFilter(orderId));
+  await Promise.all(files.map((file) => removeStoredFile(file.file_path)));
+  await OrderFile.updateMany(
+    activeFileFilter(orderId),
+    { deleted_at: new Date(), delete_reason: 'wholesaler_cancelled' }
+  );
+
+  order.order_status = 'cancelled';
+  await order.save();
+
+  await logActivity({
+    userId: req.user.id,
+    orderId: order.id,
+    action: 'wholesaler_order_cancelled',
+    description: `${order.order_number} cancelled by wholesaler before staff accepted it.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ order: await orderSummary(order) });
+});
+
 const getOrderDetails = asyncHandler(async (req, res) => {
   const orderId = parseObjectId(req.params.id);
   const order = await Order.findOne({
@@ -203,6 +251,7 @@ const getOrderDetails = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  cancelOrder,
   createOrder,
   dashboard,
   getOrderDetails,

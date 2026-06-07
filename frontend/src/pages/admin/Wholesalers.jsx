@@ -22,6 +22,7 @@ export default function AdminWholesalers() {
   const [editForm, setEditForm] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState('');
 
   async function loadWholesalers() {
     const data = await apiRequest('/admin/wholesalers');
@@ -109,6 +110,25 @@ export default function AdminWholesalers() {
       setMessage(error.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function clearWholesalerData(member) {
+    const ok = window.confirm(
+      `Clear all orders, billing batches, files, reports, and history for ${member.name}? The wholesaler login will stay.`
+    );
+    if (!ok) return;
+
+    setBusyId(member.id);
+    setMessage('');
+    try {
+      await apiRequest(`/admin/wholesalers/${member.id}/clear-data`, { method: 'POST' });
+      await loadWholesalers();
+      setMessage(`Wholesaler data cleared for ${member.name}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyId('');
     }
   }
 
@@ -216,6 +236,14 @@ export default function AdminWholesalers() {
                         disabled={busy || !Number(member.unpaid_completed_file_count || 0)}
                       >
                         Clear paid
+                      </button>
+                      <button
+                        className="ghost-button small-inline danger"
+                        disabled={busyId === member.id || !Number(member.total_orders || 0)}
+                        onClick={() => clearWholesalerData(member)}
+                        type="button"
+                      >
+                        {busyId === member.id ? 'Clearing...' : 'Clear data'}
                       </button>
                     </td>
                   </tr>

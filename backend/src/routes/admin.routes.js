@@ -1,6 +1,9 @@
 const express = require('express');
 const {
   activityLogs,
+  clearCustomerData,
+  clearStaffData,
+  clearWholesalerData,
   createStaff,
   createWholesaler,
   clearWholesalerPayment,
@@ -37,15 +40,18 @@ router.post('/accounting/staff/:id/mark-paid', markStaffPaid);
 router.get('/orders', listOrders);
 router.get('/orders/:id', getOrderDetails);
 router.get('/customers', listCustomers);
+router.post('/customers/:id/clear-data', clearCustomerData);
 router.get('/staff', listStaff);
 router.post('/staff', createStaff);
 router.patch('/staff/:id', updateStaff);
 router.patch('/staff/:id/status', updateStaffStatus);
+router.post('/staff/:id/clear-data', clearStaffData);
 router.get('/wholesalers', listWholesalers);
 router.post('/wholesalers', createWholesaler);
 router.patch('/wholesalers/:id', updateWholesaler);
 router.patch('/wholesalers/:id/status', updateWholesalerStatus);
 router.post('/wholesalers/:id/clear-payment', clearWholesalerPayment);
+router.post('/wholesalers/:id/clear-data', clearWholesalerData);
 router.get('/staff-earnings', staffEarnings);
 router.get('/revenue-summary', revenueSummary);
 router.get('/activity-logs', activityLogs);

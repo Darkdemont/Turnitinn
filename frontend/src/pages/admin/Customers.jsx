@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
+import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { formatDate, formatLkr } from '../../utils/format';
@@ -8,16 +9,43 @@ import { formatDate, formatLkr } from '../../utils/format';
 export default function AdminCustomers() {
   const [customers, setCustomers] = useState(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  async function loadCustomers() {
+    const data = await apiRequest('/admin/customers');
+    setCustomers(data.customers);
+  }
 
   useEffect(() => {
-    apiRequest('/admin/customers')
-      .then((data) => setCustomers(data.customers))
-      .catch((err) => setError(err.message));
+    loadCustomers().catch((err) => setError(err.message));
   }, []);
+
+  async function clearCustomerData(customer) {
+    const ok = window.confirm(
+      `Clear all orders, packages, files, reports, and customer history for ${customer.name}? The login will stay.`
+    );
+    if (!ok) return;
+
+    setBusyId(customer.id);
+    setMessage('');
+    try {
+      await apiRequest(`/admin/customers/${customer.id}/clear-data`, { method: 'POST' });
+      await loadCustomers();
+      setMessage(`Customer data cleared for ${customer.name}.`);
+    } catch (clearError) {
+      setMessage(clearError.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  const isError = Boolean(error || message.includes('not found') || message.includes('Could'));
 
   return (
     <>
       <PageHeader title="Customers" eyebrow="accounts" />
+      <FormMessage type={isError ? 'error' : 'success'}>{message}</FormMessage>
       <section className="panel">
         {error ? <EmptyState title="Could not load customers" text={error} /> : null}
         {!customers && !error ? <div className="screen-loader">Loading customers...</div> : null}
@@ -33,6 +61,7 @@ export default function AdminCustomers() {
                   <th>Orders</th>
                   <th>Total spend</th>
                   <th>Joined</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -45,6 +74,16 @@ export default function AdminCustomers() {
                     <td>{customer.order_count}</td>
                     <td>{formatLkr(customer.total_spend_lkr)}</td>
                     <td>{formatDate(customer.created_at)}</td>
+                    <td className="button-row compact">
+                      <button
+                        className="ghost-button small-inline danger"
+                        disabled={busyId === customer.id || !Number(customer.order_count || 0)}
+                        onClick={() => clearCustomerData(customer)}
+                        type="button"
+                      >
+                        {busyId === customer.id ? 'Clearing...' : 'Clear data'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

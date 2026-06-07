@@ -21,6 +21,7 @@ export default function AdminStaff() {
   const [editForm, setEditForm] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState('');
 
   async function loadStaff() {
     const data = await apiRequest('/admin/staff');
@@ -89,10 +90,34 @@ export default function AdminStaff() {
     }
   }
 
+  async function clearStaffData(member) {
+    const ok = window.confirm(
+      `Clear staff work data for ${member.name}? Active work will return to the available queue, and this staff member's earnings/counts will reset.`
+    );
+    if (!ok) return;
+
+    setBusyId(member.id);
+    setMessage('');
+    try {
+      await apiRequest(`/admin/staff/${member.id}/clear-data`, { method: 'POST' });
+      await loadStaff();
+      setMessage(`Staff data cleared for ${member.name}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  const isError =
+    message.includes('Could') ||
+    message.includes('exists') ||
+    message.includes('not found');
+
   return (
     <>
       <PageHeader title="Staff" eyebrow="manage staff" />
-      <FormMessage type={message.includes('Could') || message.includes('exists') ? 'error' : 'success'}>
+      <FormMessage type={isError ? 'error' : 'success'}>
         {message}
       </FormMessage>
 
@@ -174,6 +199,14 @@ export default function AdminStaff() {
                       <button className="ghost-button" onClick={() => setEditForm({ ...member, password: '' })}>Edit</button>
                       <button className="secondary-button" onClick={() => toggleStatus(member)} disabled={busy}>
                         {member.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="ghost-button small-inline danger"
+                        disabled={busyId === member.id}
+                        onClick={() => clearStaffData(member)}
+                        type="button"
+                      >
+                        {busyId === member.id ? 'Clearing...' : 'Clear data'}
                       </button>
                     </td>
                   </tr>
