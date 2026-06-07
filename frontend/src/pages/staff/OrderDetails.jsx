@@ -1,6 +1,6 @@
-import { CheckCircle2, Download, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Download, UploadCloud, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiRequest, downloadProtectedFile } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
@@ -10,6 +10,7 @@ import { formatBytes, formatDate, serviceLabel } from '../../utils/format';
 
 export default function StaffOrderDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [reportUploads, setReportUploads] = useState({
     similarity: null,
@@ -38,6 +39,19 @@ export default function StaffOrderDetails() {
       await apiRequest(`/staff/orders/${id}/accept`, { method: 'POST' });
       await loadOrder();
       setMessage('Order accepted.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function declineOrder() {
+    setBusy(true);
+    setMessage('');
+    try {
+      await apiRequest(`/staff/orders/${id}/decline`, { method: 'PATCH' });
+      navigate('/staff/available-orders', { replace: true });
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -139,10 +153,16 @@ export default function StaffOrderDetails() {
         eyebrow="staff order"
         actions={
           isAvailable ? (
-            <button className="primary-button" onClick={acceptOrder} disabled={busy}>
-              <CheckCircle2 size={18} aria-hidden="true" />
-              {busy ? 'Accepting...' : 'Accept order'}
-            </button>
+            <div className="button-row compact">
+              <button className="primary-button" onClick={acceptOrder} disabled={busy}>
+                <CheckCircle2 size={18} aria-hidden="true" />
+                {busy ? 'Accepting...' : 'Accept order'}
+              </button>
+              <button className="ghost-button danger" onClick={declineOrder} disabled={busy} type="button">
+                <XCircle size={18} aria-hidden="true" />
+                Decline
+              </button>
+            </div>
           ) : canRelease ? (
             <button className="ghost-button danger" onClick={releaseOrder} disabled={busy}>
               {busy ? 'Releasing...' : 'Release order'}

@@ -1115,6 +1115,7 @@ td {
 }
 
 .queue-order-main span,
+.queue-order-main small,
 .queue-service,
 .queue-files,
 .active-work-title span {
@@ -1123,9 +1124,22 @@ td {
   font-weight: 700;
 }
 
+.queue-order-main small {
+  color: #9bdcff;
+  overflow-wrap: anywhere;
+}
+
 .queue-service,
 .queue-files {
   white-space: nowrap;
+}
+
+.queue-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .active-work-item {
@@ -2184,7 +2198,13 @@ td {
     padding: 10px;
   }
 
-  .queue-order-row .primary-button {
+  .queue-actions {
+    justify-content: stretch;
+  }
+
+  .queue-actions .primary-button,
+  .queue-actions .ghost-button {
+    flex: 1 1 140px;
     width: 100%;
   }
 

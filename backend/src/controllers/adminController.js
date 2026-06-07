@@ -537,7 +537,7 @@ const clearStaffData = asyncHandler(async (req, res) => {
       })
     : { report_file_count: 0, cleared_bytes: 0 };
 
-  const [released, unassigned, earningsDeleted, notificationsDeleted] = await Promise.all([
+  const [released, unassigned, declinesCleared, earningsDeleted, notificationsDeleted] = await Promise.all([
     Order.updateMany(
       { _id: { $in: activeOrderIds } },
       {
@@ -559,6 +559,10 @@ const clearStaffData = asyncHandler(async (req, res) => {
         }
       }
     ),
+    Order.updateMany(
+      { declined_by_staff_ids: staffId },
+      { $pull: { declined_by_staff_ids: staffId } }
+    ),
     StaffEarning.deleteMany({ staff_id: staffId }),
     Notification.deleteMany({ user_id: staffId })
   ]);
@@ -566,6 +570,7 @@ const clearStaffData = asyncHandler(async (req, res) => {
   const result = {
     active_orders_released: released.modifiedCount || 0,
     completed_orders_unassigned: unassigned.modifiedCount || 0,
+    declined_orders_cleared: declinesCleared.modifiedCount || 0,
     earnings_deleted: earningsDeleted.deletedCount || 0,
     notifications_deleted: notificationsDeleted.deletedCount || 0,
     report_file_count: reportResult.report_file_count,

@@ -23,6 +23,7 @@ const orderSchema = new Schema(
       default: 'pending_payment'
     },
     accepted_by_staff_id: { type: Types.ObjectId, ref: 'User' },
+    declined_by_staff_ids: [{ type: Types.ObjectId, ref: 'User' }],
     accepted_at: Date,
     completed_at: Date,
     ai_score: { type: Number, min: 0, max: 100 },
@@ -37,6 +38,7 @@ orderSchema.index({ customer_id: 1 });
 orderSchema.index({ customer_package_id: 1 });
 orderSchema.index({ order_status: 1, payment_status: 1 });
 orderSchema.index({ accepted_by_staff_id: 1 });
+orderSchema.index({ declined_by_staff_ids: 1 });
 orderSchema.index({ account_type: 1, wholesaler_payment_status: 1 });
 
 module.exports = model('Order', orderSchema);

@@ -1,17 +1,18 @@
-import { CheckCircle2, Download, FileText } from 'lucide-react';
+import { CheckCircle2, Download, FileText, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest, downloadProtectedFile } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import StatusBadge from '../../components/StatusBadge';
-import { accountTypeLabel, formatDate, formatUsd, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatBytes, formatDate, formatUsd, serviceLabel } from '../../utils/format';
 
 export default function StaffDashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [acceptingId, setAcceptingId] = useState(null);
+  const [decliningId, setDecliningId] = useState(null);
   const [downloadBusyId, setDownloadBusyId] = useState(null);
   const [reportUploads, setReportUploads] = useState({});
   const [reportMeta, setReportMeta] = useState({});
@@ -71,6 +72,21 @@ export default function StaffDashboard() {
       await loadDashboard().catch(() => {});
     } finally {
       setAcceptingId(null);
+    }
+  }
+
+  async function declineOrder(orderId) {
+    setMessage('');
+    setDecliningId(orderId);
+    try {
+      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'PATCH' });
+      await loadDashboard();
+      setMessage('Order declined. It will not show in your queue again.');
+    } catch (err) {
+      setMessage(err.message);
+      await loadDashboard().catch(() => {});
+    } finally {
+      setDecliningId(null);
     }
   }
 
@@ -242,7 +258,7 @@ export default function StaffDashboard() {
         </div>
       </section>
 
-      <FormMessage type={message.includes('accepted') || message.includes('started') || message.includes('uploaded') || message.includes('completed') || message.includes('released') ? 'success' : 'error'}>{message}</FormMessage>
+      <FormMessage type={message.includes('accepted') || message.includes('started') || message.includes('uploaded') || message.includes('completed') || message.includes('released') || message.includes('declined') ? 'success' : 'error'}>{message}</FormMessage>
 
       <section className="staff-priority-grid">
         <section className="panel staff-work-panel">
@@ -258,20 +274,36 @@ export default function StaffDashboard() {
               {availableOrders.map((order) => (
                 <article className="queue-order-row" key={order.id}>
                   <div className="queue-order-main">
-                    <strong>{order.order_number}</strong>
-                    <span>{accountTypeLabel(order.account_type)} - {formatDate(order.created_at)}</span>
+                    <strong>{order.files?.[0]?.original_file_name || order.order_number}</strong>
+                    <span>{order.order_number} - {accountTypeLabel(order.account_type)} - {formatDate(order.created_at)}</span>
+                    <small>
+                      {order.files?.[0]
+                        ? `${formatBytes(order.files[0].file_size)}${order.file_count > 1 ? ` first file, ${formatBytes(order.total_file_size)} total` : ''}`
+                        : `${order.file_count} file(s)`}
+                    </small>
                   </div>
                   <span className="queue-service">{serviceLabel(order.service_type)}</span>
                   <span className="queue-files">{order.file_count} file(s)</span>
-                  <button
-                    className="primary-button small"
-                    disabled={acceptingId === order.id || summary.remaining_accept_slots <= 0}
-                    onClick={() => acceptOrder(order.id)}
-                    type="button"
-                  >
-                    <CheckCircle2 size={18} aria-hidden="true" />
-                    {acceptingId === order.id ? 'Accepting...' : 'Accept'}
-                  </button>
+                  <div className="queue-actions">
+                    <button
+                      className="primary-button small"
+                      disabled={acceptingId === order.id || decliningId === order.id || summary.remaining_accept_slots <= 0}
+                      onClick={() => acceptOrder(order.id)}
+                      type="button"
+                    >
+                      <CheckCircle2 size={18} aria-hidden="true" />
+                      {acceptingId === order.id ? 'Accepting...' : 'Accept'}
+                    </button>
+                    <button
+                      className="ghost-button small-inline danger"
+                      disabled={acceptingId === order.id || decliningId === order.id}
+                      onClick={() => declineOrder(order.id)}
+                      type="button"
+                    >
+                      <XCircle size={16} aria-hidden="true" />
+                      {decliningId === order.id ? 'Declining...' : 'Decline'}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

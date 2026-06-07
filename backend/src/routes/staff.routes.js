@@ -4,6 +4,7 @@ const {
   availableOrders,
   completedOrders,
   dashboard,
+  declineOrder,
   getOrderDetails,
   markCompleted,
   myOrders,
@@ -24,6 +25,7 @@ router.get('/orders/my', myOrders);
 router.get('/orders/completed', completedOrders);
 router.get('/orders/:id', getOrderDetails);
 router.post('/orders/:id/accept', acceptOrder);
+router.patch('/orders/:id/decline', declineOrder);
 router.patch('/orders/:id/release', releaseOrder);
 router.post('/orders/:id/reports', uploadLimiter, uploadReportFiles, uploadReport);
 router.patch('/orders/:id/complete', markCompleted);

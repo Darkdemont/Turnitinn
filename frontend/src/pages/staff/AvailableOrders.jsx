@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
@@ -6,12 +6,13 @@ import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { accountTypeLabel, formatDate, serviceLabel } from '../../utils/format';
+import { accountTypeLabel, formatBytes, formatDate, serviceLabel } from '../../utils/format';
 
 export default function StaffAvailableOrders() {
   const [orders, setOrders] = useState(null);
   const [message, setMessage] = useState('');
   const [acceptingId, setAcceptingId] = useState(null);
+  const [decliningId, setDecliningId] = useState(null);
 
   const loadOrders = useCallback(async () => {
     const data = await apiRequest('/staff/orders/available');
@@ -55,10 +56,25 @@ export default function StaffAvailableOrders() {
     }
   }
 
+  async function declineOrder(orderId) {
+    setMessage('');
+    setDecliningId(orderId);
+    try {
+      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'PATCH' });
+      await loadOrders();
+      setMessage('Order declined. It will not show in your queue again.');
+    } catch (error) {
+      setMessage(error.message);
+      await loadOrders().catch(() => {});
+    } finally {
+      setDecliningId(null);
+    }
+  }
+
   return (
     <>
       <PageHeader title="Available Orders" eyebrow="first come first served" />
-      <FormMessage type={message.includes('accepted.') ? 'success' : 'error'}>{message}</FormMessage>
+      <FormMessage type={message.includes('accepted.') || message.includes('declined') ? 'success' : 'error'}>{message}</FormMessage>
 
       <section className="panel">
         {!orders ? <div className="screen-loader">Loading available orders...</div> : null}
@@ -68,6 +84,7 @@ export default function StaffAvailableOrders() {
               <thead>
                 <tr>
                   <th>Order</th>
+                  <th>File</th>
                   <th>Account</th>
                   <th>Service</th>
                   <th>Files</th>
@@ -84,19 +101,38 @@ export default function StaffAvailableOrders() {
                         {order.order_number}
                       </Link>
                     </td>
+                    <td>
+                      <div className="file-name-stack">
+                        <span>{order.files?.[0]?.original_file_name || `${order.file_count} file(s)`}</span>
+                        <small>
+                          {order.files?.[0]
+                            ? `${formatBytes(order.files[0].file_size)}${order.file_count > 1 ? ` first file, ${formatBytes(order.total_file_size)} total` : ''}`
+                            : '-'}
+                        </small>
+                      </div>
+                    </td>
                     <td>{accountTypeLabel(order.account_type)}</td>
                     <td>{serviceLabel(order.service_type)}</td>
                     <td>{order.file_count}</td>
                     <td><StatusBadge value={order.order_status} /></td>
                     <td>{formatDate(order.created_at)}</td>
-                    <td>
+                    <td className="button-row compact">
                       <button
                         className="primary-button small"
                         onClick={() => acceptOrder(order.id)}
-                        disabled={acceptingId === order.id}
+                        disabled={acceptingId === order.id || decliningId === order.id}
                       >
                         <CheckCircle2 size={16} aria-hidden="true" />
                         {acceptingId === order.id ? 'Accepting...' : 'Accept'}
+                      </button>
+                      <button
+                        className="ghost-button small-inline danger"
+                        onClick={() => declineOrder(order.id)}
+                        disabled={acceptingId === order.id || decliningId === order.id}
+                        type="button"
+                      >
+                        <XCircle size={16} aria-hidden="true" />
+                        {decliningId === order.id ? 'Declining...' : 'Decline'}
                       </button>
                     </td>
                   </tr>

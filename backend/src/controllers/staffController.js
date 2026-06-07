@@ -39,19 +39,45 @@ function activeFileFilter(orderId) {
   };
 }
 
+function visibleAvailableOrderFilter(staffId) {
+  return {
+    order_status: 'available',
+    payment_status: 'paid',
+    accepted_by_staff_id: { $exists: false },
+    declined_by_staff_ids: { $ne: parseObjectId(staffId) }
+  };
+}
+
 function ownerOrderPath(order) {
   return order.account_type === 'wholesaler'
     ? `/wholesaler/orders/${order.id}`
     : `/customer/orders/${order.id}`;
 }
 
+async function queueOrderSummary(order) {
+  const files = await OrderFile.find(activeFileFilter(order._id))
+    .sort({ _id: 1 })
+    .select('original_file_name file_size file_type uploaded_at');
+  const plainFiles = plainMany(files);
+
+  return {
+    id: order.id,
+    order_number: order.order_number,
+    account_type: order.account_type,
+    service_type: order.service_type,
+    file_count: order.file_count,
+    total_file_size: plainFiles.reduce((total, file) => total + Number(file.file_size || 0), 0),
+    files: plainFiles,
+    payment_status: order.payment_status,
+    order_status: order.order_status,
+    created_at: order.created_at
+  };
+}
+
 const dashboard = asyncHandler(async (req, res) => {
+  const availableFilter = visibleAvailableOrderFilter(req.user.id);
   const [available, active, completed, earningsRows, availableDocs, activeDocs] = await Promise.all([
-    Order.countDocuments({
-      order_status: 'available',
-      payment_status: 'paid',
-      accepted_by_staff_id: { $exists: false }
-    }),
+    Order.countDocuments(availableFilter),
     Order.countDocuments({
       accepted_by_staff_id: req.user.id,
       order_status: { $in: ACTIVE_STAFF_STATUSES }
@@ -70,11 +96,7 @@ const dashboard = asyncHandler(async (req, res) => {
         }
       }
     ]),
-    Order.find({
-      order_status: 'available',
-      payment_status: 'paid',
-      accepted_by_staff_id: { $exists: false }
-    })
+    Order.find(availableFilter)
       .sort({ created_at: 1 })
       .limit(5)
       .select('order_number account_type service_type file_count order_status created_at'),
@@ -112,31 +134,16 @@ const dashboard = asyncHandler(async (req, res) => {
       total_completed_files: earningsRows[0]?.total_completed_files || 0,
       total_earning_usd: earningsRows[0]?.total_earning_usd || 0
     },
-    available_orders: plainMany(availableDocs),
+    available_orders: await Promise.all(availableDocs.map(queueOrderSummary)),
     active_orders: activeOrders,
     recent_orders: activeOrders
   });
 });
 
 const availableOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({
-    order_status: 'available',
-    payment_status: 'paid',
-    accepted_by_staff_id: { $exists: false }
-  }).sort({ created_at: 1 });
+  const orders = await Order.find(visibleAvailableOrderFilter(req.user.id)).sort({ created_at: 1 });
 
-  res.json({
-    orders: orders.map((order) => ({
-      id: order.id,
-      order_number: order.order_number,
-      account_type: order.account_type,
-      service_type: order.service_type,
-      file_count: order.file_count,
-      payment_status: order.payment_status,
-      order_status: order.order_status,
-      created_at: order.created_at
-    }))
-  });
+  res.json({ orders: await Promise.all(orders.map(queueOrderSummary)) });
 });
 
 const myOrders = asyncHandler(async (req, res) => {
@@ -192,7 +199,8 @@ const acceptOrder = asyncHandler(async (req, res) => {
     {
       _id: orderId,
       order_status: 'available',
-      accepted_by_staff_id: { $exists: false }
+      accepted_by_staff_id: { $exists: false },
+      declined_by_staff_ids: { $ne: parseObjectId(req.user.id) }
     },
     {
       accepted_by_staff_id: req.user.id,
@@ -203,7 +211,7 @@ const acceptOrder = asyncHandler(async (req, res) => {
   );
 
   if (!order) {
-    throw new HttpError(409, 'This order was already accepted by another staff member.');
+    throw new HttpError(409, 'This order was already accepted, declined, or is no longer available.');
   }
 
   await logActivity({
@@ -221,6 +229,35 @@ const acceptOrder = asyncHandler(async (req, res) => {
     title: 'Order accepted',
     message: `${order.order_number} has been accepted and will be checked soon.`,
     linkPath: ownerOrderPath(order)
+  });
+
+  res.json({ order: plain(order) });
+});
+
+const declineOrder = asyncHandler(async (req, res) => {
+  const orderId = parseObjectId(req.params.id);
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      order_status: 'available',
+      accepted_by_staff_id: { $exists: false }
+    },
+    {
+      $addToSet: { declined_by_staff_ids: req.user.id }
+    },
+    { new: true }
+  );
+
+  if (!order) {
+    throw new HttpError(404, 'Available order not found.');
+  }
+
+  await logActivity({
+    userId: req.user.id,
+    orderId: order.id,
+    action: 'order_declined',
+    description: `${order.order_number} declined by ${req.user.email}.`,
+    ipAddress: req.ip
   });
 
   res.json({ order: plain(order) });
@@ -245,6 +282,7 @@ const releaseOrder = asyncHandler(async (req, res) => {
 
   order.order_status = 'available';
   order.accepted_by_staff_id = undefined;
+  order.declined_by_staff_ids.addToSet(parseObjectId(req.user.id));
   order.accepted_at = undefined;
   await order.save();
 
@@ -252,7 +290,7 @@ const releaseOrder = asyncHandler(async (req, res) => {
     userId: req.user.id,
     orderId: order.id,
     action: 'order_released',
-    description: `${order.order_number} released back to the staff queue by ${req.user.email}.`,
+    description: `${order.order_number} released back to the staff queue by ${req.user.email} and hidden from that staff member.`,
     ipAddress: req.ip
   });
 
@@ -270,10 +308,11 @@ const releaseOrder = asyncHandler(async (req, res) => {
 
 const getOrderDetails = asyncHandler(async (req, res) => {
   const orderId = parseObjectId(req.params.id);
+  const staffId = parseObjectId(req.user.id);
   const order = await Order.findOne({
     _id: orderId,
     $or: [
-      { order_status: 'available' },
+      { order_status: 'available', declined_by_staff_ids: { $ne: staffId } },
       { accepted_by_staff_id: req.user.id }
     ]
   });
@@ -429,6 +468,7 @@ module.exports = {
   availableOrders,
   completedOrders,
   dashboard,
+  declineOrder,
   getOrderDetails,
   markCompleted,
   myOrders,
