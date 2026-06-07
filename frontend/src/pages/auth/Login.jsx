@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import FormMessage from '../../components/FormMessage';
 import { useAuth } from '../../context/AuthContext';
@@ -13,12 +13,18 @@ const titleByRole = {
 };
 
 export default function Login({ expectedRole }) {
-  const { login } = useAuth();
+  const { login, loading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user && (!expectedRole || user.role === expectedRole)) {
+      navigate(roleHome(user.role), { replace: true });
+    }
+  }, [expectedRole, loading, navigate, user]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -33,6 +39,10 @@ export default function Login({ expectedRole }) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loading || (user && (!expectedRole || user.role === expectedRole))) {
+    return <div className="screen-loader">Loading...</div>;
   }
 
   return (

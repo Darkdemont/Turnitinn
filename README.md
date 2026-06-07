@@ -100,12 +100,12 @@ PORT=3000
 FRONTEND_URL=https://turnnchecker.com
 MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/turnit_phase1
 JWT_SECRET=replace_this_with_a_long_random_secret
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=30d
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE_MB=20
 MAX_FILES_PER_ORDER=20
 STAFF_MAX_ACTIVE_ORDERS=3
-FILE_RETENTION_HOURS=24
+FILE_RETENTION_HOURS=48
 FILE_CLEANUP_INTERVAL_MINUTES=60
 ```
 
@@ -122,10 +122,10 @@ automatic redeployments from hPanel.
 ## File Retention
 
 Uploaded order files and uploaded report files are stored on disk, not inside MongoDB. Each file record
-gets an `expires_at` timestamp. By default, files expire after 24 hours:
+gets an `expires_at` timestamp. By default, files expire after 48 hours:
 
 ```env
-FILE_RETENTION_HOURS=24
+FILE_RETENTION_HOURS=48
 FILE_CLEANUP_INTERVAL_MINUTES=60
 ```
 

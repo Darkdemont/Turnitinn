@@ -24,7 +24,7 @@ module.exports = {
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/turnit_phase1',
   jwtSecret: process.env.JWT_SECRET || 'development_only_change_me',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
   uploadRoot,
   maxFileSizeMb: numberFromEnv('MAX_FILE_SIZE_MB', 20),
   maxFilesPerOrder: numberFromEnv('MAX_FILES_PER_ORDER', 20),

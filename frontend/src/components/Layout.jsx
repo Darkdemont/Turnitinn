@@ -105,10 +105,14 @@ export default function Layout() {
             {user?.role === 'customer' || user?.role === 'staff' || user?.role === 'wholesaler' ? (
               <NotificationBell role={user.role} />
             ) : null}
-            <div>
+            <div className="signed-in-block">
               <span className="muted-label">Signed in as</span>
               <strong>{user?.email}</strong>
             </div>
+            <button className="ghost-button topbar-logout" onClick={handleLogout}>
+              <LogOut size={18} aria-hidden="true" />
+              Logout
+            </button>
           </div>
         </header>
         <main className="content">
