@@ -38,9 +38,14 @@ export function AuthProvider({ children }) {
           setUser(data.user);
           setStoredAuth(token, data.user);
         }
-      } catch {
-        clearStoredAuth(activeRole);
-        if (mounted) setUser(null);
+      } catch (error) {
+        const storedUser = getStoredUser(activeRole);
+        if (error.message === 'Stored login belongs to a different portal.') {
+          clearStoredAuth(activeRole);
+          if (mounted) setUser(null);
+        } else if (mounted && storedUser) {
+          setUser(storedUser);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
