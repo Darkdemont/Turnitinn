@@ -42,10 +42,10 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
   const [submitting, setSubmitting] = useState(false);
 
   const selectedExistingPackage = availablePackages.find(
-    (item) => Number(item.id) === Number(selectedExistingPackageId)
+    (item) => String(item.id) === String(selectedExistingPackageId)
   );
   const selectedExistingPackageAvailable = availablePackages.some(
-    (item) => Number(item.id) === Number(selectedExistingPackageId)
+    (item) => String(item.id) === String(selectedExistingPackageId)
   );
   const maxFileCount =
     mode === 'existing'
@@ -209,13 +209,13 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
               {availablePackages.map((item) => (
                 <label
                   key={item.id}
-                  className={`package-row ${Number(selectedExistingPackageId) === Number(item.id) ? 'selected' : ''}`}
+                  className={`package-row ${String(selectedExistingPackageId) === String(item.id) ? 'selected' : ''}`}
                 >
                   <input
                     type="radio"
                     name="existing_package"
                     value={item.id}
-                    checked={Number(selectedExistingPackageId) === Number(item.id)}
+                    checked={String(selectedExistingPackageId) === String(item.id)}
                     onChange={() => setSelectedExistingPackageId(item.id)}
                   />
                   <span>{item.package_number}</span>

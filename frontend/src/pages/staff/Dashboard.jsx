@@ -17,6 +17,7 @@ export default function StaffDashboard() {
   const [reportMeta, setReportMeta] = useState({});
   const [uploadBusyId, setUploadBusyId] = useState(null);
   const [completeBusyId, setCompleteBusyId] = useState(null);
+  const [releaseBusyId, setReleaseBusyId] = useState(null);
   const [uploadResetKeys, setUploadResetKeys] = useState({});
 
   const loadDashboard = useCallback(async () => {
@@ -185,6 +186,21 @@ export default function StaffDashboard() {
     }
   }
 
+  async function releaseOrder(orderId) {
+    setMessage('');
+    setReleaseBusyId(orderId);
+    try {
+      await apiRequest(`/staff/orders/${orderId}/release`, { method: 'PATCH' });
+      resetQuickUpload(orderId);
+      await loadDashboard();
+      setMessage('Order released back to the available queue.');
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setReleaseBusyId(null);
+    }
+  }
+
   if (error) return <EmptyState title="Could not load dashboard" text={error} />;
   if (!data) return <div className="screen-loader">Loading dashboard...</div>;
 
@@ -226,7 +242,7 @@ export default function StaffDashboard() {
         </div>
       </section>
 
-      <FormMessage type={message.includes('accepted') || message.includes('started') || message.includes('uploaded') || message.includes('completed') ? 'success' : 'error'}>{message}</FormMessage>
+      <FormMessage type={message.includes('accepted') || message.includes('started') || message.includes('uploaded') || message.includes('completed') || message.includes('released') ? 'success' : 'error'}>{message}</FormMessage>
 
       <section className="staff-priority-grid">
         <section className="panel staff-work-panel">
@@ -303,6 +319,14 @@ export default function StaffDashboard() {
                       <Link className="secondary-button small-inline" to={`/staff/orders/${order.id}`}>
                         Full work
                       </Link>
+                      <button
+                        className="ghost-button small-inline danger"
+                        disabled={releaseBusyId === order.id || (order.report_count || 0) > 0}
+                        onClick={() => releaseOrder(order.id)}
+                        type="button"
+                      >
+                        {releaseBusyId === order.id ? 'Releasing...' : 'Release'}
+                      </button>
                     </div>
 
                     <form className="quick-report-form" onSubmit={(event) => uploadReports(event, order.id)}>

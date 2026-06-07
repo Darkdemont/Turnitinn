@@ -226,6 +226,48 @@ const acceptOrder = asyncHandler(async (req, res) => {
   res.json({ order: plain(order) });
 });
 
+const releaseOrder = asyncHandler(async (req, res) => {
+  const orderId = parseObjectId(req.params.id);
+  const order = await Order.findOne({
+    _id: orderId,
+    accepted_by_staff_id: req.user.id,
+    order_status: { $in: ['accepted', 'checking'] }
+  });
+
+  if (!order) {
+    throw new HttpError(404, 'Active accepted order not found.');
+  }
+
+  const reportCount = await ReportFile.countDocuments({ order_id: order._id });
+  if (reportCount > 0) {
+    throw new HttpError(400, 'This order already has uploaded reports and cannot be released.');
+  }
+
+  order.order_status = 'available';
+  order.accepted_by_staff_id = undefined;
+  order.accepted_at = undefined;
+  await order.save();
+
+  await logActivity({
+    userId: req.user.id,
+    orderId: order.id,
+    action: 'order_released',
+    description: `${order.order_number} released back to the staff queue by ${req.user.email}.`,
+    ipAddress: req.ip
+  });
+
+  await notifyUser({
+    userId: order.customer_id,
+    orderId: order.id,
+    type: 'order_released',
+    title: 'Order returned to queue',
+    message: `${order.order_number} was returned to the staff queue and will be accepted again soon.`,
+    linkPath: ownerOrderPath(order)
+  });
+
+  res.json({ order: plain(order) });
+});
+
 const getOrderDetails = asyncHandler(async (req, res) => {
   const orderId = parseObjectId(req.params.id);
   const order = await Order.findOne({
@@ -390,5 +432,6 @@ module.exports = {
   getOrderDetails,
   markCompleted,
   myOrders,
+  releaseOrder,
   uploadReport
 };

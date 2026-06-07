@@ -45,6 +45,20 @@ export default function StaffOrderDetails() {
     }
   }
 
+  async function releaseOrder() {
+    setBusy(true);
+    setMessage('');
+    try {
+      await apiRequest(`/staff/orders/${id}/release`, { method: 'PATCH' });
+      await loadOrder();
+      setMessage('Order released back to the available queue.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadFile(file) {
     setMessage('');
     try {
@@ -116,6 +130,7 @@ export default function StaffOrderDetails() {
   const { order, files, reports, can_download_order_files: canDownload } = data;
   const isAvailable = order.order_status === 'available';
   const isCompleted = order.order_status === 'completed';
+  const canRelease = ['accepted', 'checking'].includes(order.order_status) && reports.length === 0;
 
   return (
     <>
@@ -128,10 +143,14 @@ export default function StaffOrderDetails() {
               <CheckCircle2 size={18} aria-hidden="true" />
               {busy ? 'Accepting...' : 'Accept order'}
             </button>
+          ) : canRelease ? (
+            <button className="ghost-button danger" onClick={releaseOrder} disabled={busy}>
+              {busy ? 'Releasing...' : 'Release order'}
+            </button>
           ) : null
         }
       />
-      <FormMessage type={message.includes('already') || message.includes('Could') ? 'error' : 'success'}>
+      <FormMessage type={message.includes('already') || message.includes('Could') || message.includes('cannot') ? 'error' : 'success'}>
         {message}
       </FormMessage>
 
