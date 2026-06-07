@@ -2,6 +2,7 @@ export const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
 const roles = new Set(['customer', 'staff', 'admin', 'wholesaler']);
+const authCookieMaxAgeSeconds = 60 * 60 * 24 * 365;
 
 export function getPortalRoleFromPath(pathname = window.location.pathname) {
   if (pathname.startsWith('/wholesaler')) return 'wholesaler';
@@ -15,33 +16,100 @@ function roleKey(role, type) {
   return `turnit_${normalizedRole}_${type}`;
 }
 
+function safeLocalGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Some mobile private/in-app browsers block localStorage. Cookie fallback still runs.
+  }
+}
+
+function safeLocalRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore blocked storage.
+  }
+}
+
+function cookieOptions(maxAgeSeconds) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  return `path=/; max-age=${maxAgeSeconds}; SameSite=Lax${secure}`;
+}
+
+function setCookie(key, value, maxAgeSeconds = authCookieMaxAgeSeconds) {
+  document.cookie = `${encodeURIComponent(key)}=${encodeURIComponent(value)}; ${cookieOptions(maxAgeSeconds)}`;
+}
+
+function removeCookie(key) {
+  document.cookie = `${encodeURIComponent(key)}=; ${cookieOptions(0)}`;
+}
+
+function getCookie(key) {
+  const encodedKey = `${encodeURIComponent(key)}=`;
+  const match = document.cookie
+    .split(';')
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(encodedKey));
+  return match ? decodeURIComponent(match.slice(encodedKey.length)) : null;
+}
+
+function getStoredValue(role, type) {
+  const key = roleKey(role, type);
+  return safeLocalGet(key) || getCookie(key);
+}
+
+function setStoredValue(role, type, value) {
+  const key = roleKey(role, type);
+  safeLocalSet(key, value);
+  setCookie(key, value);
+}
+
+function removeStoredValue(role, type) {
+  const key = roleKey(role, type);
+  safeLocalRemove(key);
+  removeCookie(key);
+}
+
 export function getToken(role = getPortalRoleFromPath()) {
-  const token = localStorage.getItem(roleKey(role, 'token'));
+  const token = getStoredValue(role, 'token');
   if (!token && role === 'customer') {
-    return localStorage.getItem('turnit_token');
+    return safeLocalGet('turnit_token') || getCookie('turnit_token');
   }
   return token;
 }
 
 export function setStoredAuth(token, user) {
-  localStorage.setItem(roleKey(user.role, 'token'), token);
-  localStorage.setItem(roleKey(user.role, 'user'), JSON.stringify(user));
-  localStorage.removeItem('turnit_token');
-  localStorage.removeItem('turnit_user');
+  setStoredValue(user.role, 'token', token);
+  setStoredValue(user.role, 'user', JSON.stringify(user));
+  safeLocalRemove('turnit_token');
+  safeLocalRemove('turnit_user');
+  removeCookie('turnit_token');
+  removeCookie('turnit_user');
 }
 
 export function clearStoredAuth(role = getPortalRoleFromPath()) {
-  localStorage.removeItem(roleKey(role, 'token'));
-  localStorage.removeItem(roleKey(role, 'user'));
+  removeStoredValue(role, 'token');
+  removeStoredValue(role, 'user');
   if (role === 'customer') {
-    localStorage.removeItem('turnit_token');
-    localStorage.removeItem('turnit_user');
+    safeLocalRemove('turnit_token');
+    safeLocalRemove('turnit_user');
+    removeCookie('turnit_token');
+    removeCookie('turnit_user');
   }
 }
 
 export function getStoredUser(role = getPortalRoleFromPath()) {
-  const raw = localStorage.getItem(roleKey(role, 'user')) ||
-    (role === 'customer' ? localStorage.getItem('turnit_user') : null);
+  const raw = getStoredValue(role, 'user') ||
+    (role === 'customer' ? safeLocalGet('turnit_user') || getCookie('turnit_user') : null);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
