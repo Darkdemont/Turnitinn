@@ -13,7 +13,11 @@ function numberFromEnv(name, fallback) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-const uploadDir = process.env.UPLOAD_DIR || 'uploads';
+const defaultUploadDir =
+  process.env.NODE_ENV === 'production'
+    ? path.resolve(projectRoot, '..', 'uploads')
+    : 'uploads';
+const uploadDir = process.env.UPLOAD_DIR || defaultUploadDir;
 const uploadRoot = path.isAbsolute(uploadDir)
   ? uploadDir
   : path.resolve(backendRoot, uploadDir);

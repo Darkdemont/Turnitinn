@@ -101,7 +101,7 @@ FRONTEND_URL=https://turnnchecker.com
 MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/turnit_phase1
 JWT_SECRET=replace_this_with_a_long_random_secret
 JWT_EXPIRES_IN=30d
-UPLOAD_DIR=uploads
+UPLOAD_DIR=/home/YOUR_HOSTINGER_USER/domains/turnnchecker.com/uploads
 MAX_FILE_SIZE_MB=20
 MAX_FILES_PER_ORDER=20
 STAFF_MAX_ACTIVE_ORDERS=3
@@ -197,8 +197,16 @@ MAX_FILE_SIZE_MB=20
 MAX_FILES_PER_ORDER=20
 ```
 
-Files are stored under `backend/uploads` with unique names containing the order number. Downloads go
-through protected API routes, not direct static file serving.
+In local development, files are stored under `backend/uploads` by default. In production, set
+`UPLOAD_DIR` to a persistent folder outside the deployed Node.js app. Files use unique names containing
+the order number, and downloads go through protected API routes, not direct static file serving.
+
+On Hostinger, keep `UPLOAD_DIR` outside the deployed Node.js app folder so Git redeploys do not remove
+uploaded customer files or staff reports. For this project, a good live value is:
+
+```env
+UPLOAD_DIR=/home/u909643426/domains/turnnchecker.com/uploads
+```
 
 ## Staff Acceptance Logic
 
