@@ -33,6 +33,7 @@ export default function NotificationBell({ role }) {
   const [error, setError] = useState('');
   const lastUnreadCount = useRef(null);
   const soundReady = useRef(false);
+  const wrapRef = useRef(null);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -81,6 +82,28 @@ export default function NotificationBell({ role }) {
     };
   }, [loadNotifications]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
   async function markOneRead(notification) {
     if (!notification.read_at) {
       await apiRequest(`/notifications/${notification.id}/read`, {
@@ -118,7 +141,7 @@ export default function NotificationBell({ role }) {
   }
 
   return (
-    <div className="notification-wrap">
+    <div className="notification-wrap" ref={wrapRef}>
       <button
         className={`notification-trigger ${unreadCount > 0 ? 'has-unread' : ''}`}
         type="button"

@@ -12,7 +12,8 @@ const emptyStaffForm = {
   email: '',
   phone: '',
   password: '',
-  status: 'active'
+  status: 'active',
+  rate_per_file_usd: 0.55
 };
 
 export default function AdminStaff() {
@@ -128,6 +129,7 @@ export default function AdminStaff() {
           <label>Email<input type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} required /></label>
           <label>Phone<input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
           <label>Password<input type="password" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} minLength={8} required /></label>
+          <label>Rate per file (USD)<input type="number" min="0" step="0.01" value={createForm.rate_per_file_usd} onChange={(e) => setCreateForm({ ...createForm, rate_per_file_usd: e.target.value })} required /></label>
           <label>Status
             <select value={createForm.status} onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}>
               <option value="active">Active</option>
@@ -147,6 +149,7 @@ export default function AdminStaff() {
             <label>Email<input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required /></label>
             <label>Phone<input value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} /></label>
             <label>New password<input type="password" value={editForm.password || ''} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} minLength={8} /></label>
+            <label>Rate per file (USD)<input type="number" min="0" step="0.01" value={editForm.rate_per_file_usd ?? 0.55} onChange={(e) => setEditForm({ ...editForm, rate_per_file_usd: e.target.value })} required /></label>
             <label>Status
               <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
                 <option value="active">Active</option>
@@ -164,7 +167,7 @@ export default function AdminStaff() {
         ) : (
           <div className="panel subtle-panel">
             <h2>Select a staff member</h2>
-            <p>Edit profile details or change active status from the table.</p>
+            <p>Edit profile details, pay rate, or active status from the table.</p>
           </div>
         )}
       </section>
@@ -180,6 +183,7 @@ export default function AdminStaff() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Status</th>
+                  <th>Rate</th>
                   <th>Completed files</th>
                   <th>Earnings</th>
                   <th>Joined</th>
@@ -192,6 +196,7 @@ export default function AdminStaff() {
                     <td>{member.name}</td>
                     <td>{member.email}</td>
                     <td><StatusBadge value={member.status} /></td>
+                    <td>{formatUsd(member.rate_per_file_usd ?? 0.55)}</td>
                     <td>{member.completed_file_count}</td>
                     <td>{formatUsd(member.total_earning_usd)}</td>
                     <td>{formatDate(member.created_at)}</td>

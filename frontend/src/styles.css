@@ -570,7 +570,7 @@ input[type="file"] {
     linear-gradient(145deg, rgba(24, 29, 50, 0.98), rgba(15, 20, 36, 0.96)),
     var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   box-shadow: var(--shadow);
   display: grid;
   gap: 10px;
@@ -581,7 +581,7 @@ input[type="file"] {
   right: 0;
   top: 52px;
   width: min(380px, calc(100vw - 32px));
-  z-index: 30;
+  z-index: 80;
 }
 
 .notification-panel-header {
@@ -2117,10 +2117,26 @@ td {
 
   .notification-panel {
     left: 12px;
-    max-height: calc(100dvh - 180px);
+    max-height: calc(100dvh - 96px);
+    overflow: hidden;
+    position: fixed;
     right: 12px;
-    top: 50px;
+    top: 72px;
     width: auto;
+  }
+
+  .notification-panel-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .notification-list {
+    max-height: calc(100dvh - 230px);
+  }
+
+  .notification-item {
+    grid-template-columns: 1fr 18px;
+    padding: 11px;
   }
 
   .brand-mark {

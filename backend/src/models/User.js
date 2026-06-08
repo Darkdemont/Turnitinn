@@ -9,6 +9,7 @@ const userSchema = new Schema(
     password_hash: { type: String, required: true },
     role: { type: String, enum: ['customer', 'staff', 'admin', 'wholesaler'], required: true },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    rate_per_file_usd: { type: Number, min: 0, default: 0.55 },
     rate_per_file_lkr: { type: Number, min: 0, default: 0 }
   },
   schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })

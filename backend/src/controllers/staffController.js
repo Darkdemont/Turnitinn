@@ -4,7 +4,8 @@ const {
   Order,
   OrderFile,
   ReportFile,
-  StaffEarning
+  StaffEarning,
+  User
 } = require('../models');
 const { STAFF_RATE_PER_FILE_USD } = require('../constants/pricing');
 const asyncHandler = require('../utils/asyncHandler');
@@ -425,7 +426,9 @@ const markCompleted = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'Upload both report files before marking the order completed.');
   }
 
-  const earningTotal = Number(order.file_count) * STAFF_RATE_PER_FILE_USD;
+  const staff = await User.findById(req.user.id).select('rate_per_file_usd');
+  const ratePerFileUsd = Number(staff?.rate_per_file_usd ?? STAFF_RATE_PER_FILE_USD);
+  const earningTotal = Number(order.file_count) * ratePerFileUsd;
   order.order_status = 'completed';
   order.completed_at = new Date();
   await order.save();
@@ -436,7 +439,7 @@ const markCompleted = asyncHandler(async (req, res) => {
       staff_id: req.user.id,
       order_id: order._id,
       completed_file_count: order.file_count,
-      rate_per_file_usd: STAFF_RATE_PER_FILE_USD,
+      rate_per_file_usd: ratePerFileUsd,
       total_earning_usd: earningTotal,
       status: 'unpaid'
     },

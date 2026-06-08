@@ -16,13 +16,15 @@ const HttpError = require('../utils/httpError');
 const { logActivity } = require('../utils/activityLogger');
 const { removeStoredFile } = require('../utils/fileStorage');
 const { parseObjectId, plain, plainMany } = require('../utils/mongo');
+const { STAFF_RATE_PER_FILE_USD } = require('../constants/pricing');
 
 const createStaffSchema = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email().max(180),
   phone: z.string().max(40).optional().nullable(),
   password: z.string().min(8).max(120),
-  status: z.enum(['active', 'inactive']).default('active')
+  status: z.enum(['active', 'inactive']).default('active'),
+  rate_per_file_usd: z.coerce.number().min(0).default(STAFF_RATE_PER_FILE_USD)
 });
 
 const updateStaffSchema = z.object({
@@ -30,7 +32,8 @@ const updateStaffSchema = z.object({
   email: z.string().email().max(180).optional(),
   phone: z.string().max(40).optional().nullable(),
   password: z.string().min(8).max(120).optional(),
-  status: z.enum(['active', 'inactive']).optional()
+  status: z.enum(['active', 'inactive']).optional(),
+  rate_per_file_usd: z.coerce.number().min(0).optional()
 });
 
 const createWholesalerSchema = z.object({
@@ -440,7 +443,8 @@ const createStaff = asyncHandler(async (req, res) => {
     phone: payload.phone || null,
     password_hash: await bcrypt.hash(payload.password, 12),
     role: 'staff',
-    status: payload.status
+    status: payload.status,
+    rate_per_file_usd: payload.rate_per_file_usd
   });
 
   await logActivity({
@@ -472,6 +476,7 @@ const updateStaff = asyncHandler(async (req, res) => {
   if (payload.name !== undefined) current.name = payload.name;
   if (payload.phone !== undefined) current.phone = payload.phone || null;
   if (payload.status !== undefined) current.status = payload.status;
+  if (payload.rate_per_file_usd !== undefined) current.rate_per_file_usd = payload.rate_per_file_usd;
   if (payload.password !== undefined) current.password_hash = await bcrypt.hash(payload.password, 12);
 
   if (!Object.keys(payload).length) {
