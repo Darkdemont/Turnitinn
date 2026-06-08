@@ -6,7 +6,7 @@ Assignment report-checking web application for the Phase 1 workflow:
 - Staff log in, accept available orders first-come-first-served, download accepted files, upload reports, complete orders, and track earnings.
 - Admins log in, view all operational data, manage staff, review revenue, staff earnings, and activity logs.
 
-Payment gateway, email, and WhatsApp integrations are intentionally not included in Phase 1. New orders are automatically created with `payment_status = paid` and `order_status = available`.
+Payment gateway and email integrations are intentionally not included in Phase 1. New orders are automatically created with `payment_status = paid` and `order_status = available`. Optional Twilio WhatsApp staff alerts can be enabled with environment variables.
 
 ## Tech Stack
 
@@ -107,7 +107,25 @@ MAX_FILES_PER_ORDER=20
 STAFF_MAX_ACTIVE_ORDERS=3
 FILE_RETENTION_HOURS=48
 FILE_CLEANUP_INTERVAL_MINUTES=60
+STAFF_ALERT_CHANNEL=
+DEFAULT_PHONE_COUNTRY_CODE=+94
+PUBLIC_APP_URL=https://turnnchecker.com
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_FROM=
 ```
+
+To enable Twilio WhatsApp alerts for new customer or wholesaler orders, set:
+
+```env
+STAFF_ALERT_CHANNEL=whatsapp
+PUBLIC_APP_URL=https://turnnchecker.com
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+```
+
+In Twilio sandbox testing, each staff WhatsApp number must join the sandbox before it can receive alerts.
 
 After the first deployment, run the database seed once from Hostinger's terminal/SSH or your local
 machine with the production `MONGODB_URI`:

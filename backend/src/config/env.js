@@ -22,6 +22,7 @@ module.exports = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: numberFromEnv('PORT', 5000),
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  publicAppUrl: process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173',
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/turnit_phase1',
   jwtSecret: process.env.JWT_SECRET || 'development_only_change_me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '365d',
@@ -30,5 +31,10 @@ module.exports = {
   maxFilesPerOrder: numberFromEnv('MAX_FILES_PER_ORDER', 20),
   staffMaxActiveOrders: numberFromEnv('STAFF_MAX_ACTIVE_ORDERS', 3),
   fileRetentionHours: numberFromEnv('FILE_RETENTION_HOURS', 48),
-  fileCleanupIntervalMinutes: numberFromEnv('FILE_CLEANUP_INTERVAL_MINUTES', 60)
+  fileCleanupIntervalMinutes: numberFromEnv('FILE_CLEANUP_INTERVAL_MINUTES', 60),
+  staffAlertChannel: process.env.STAFF_ALERT_CHANNEL || '',
+  defaultPhoneCountryCode: process.env.DEFAULT_PHONE_COUNTRY_CODE || '+94',
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+  twilioWhatsappFrom: process.env.TWILIO_WHATSAPP_FROM || ''
 };

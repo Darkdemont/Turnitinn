@@ -1,4 +1,5 @@
 const { Notification, User } = require('../models');
+const { sendStaffOrderWhatsappAlerts } = require('./externalAlertService');
 
 async function notifyUser({ userId, orderId = null, type, title, message, linkPath = null }) {
   await Notification.create({
@@ -12,7 +13,7 @@ async function notifyUser({ userId, orderId = null, type, title, message, linkPa
 }
 
 async function notifyRole({ role, orderId = null, type, title, message, linkPath = null }) {
-  const users = await User.find({ role, status: 'active' }).select('_id');
+  const users = await User.find({ role, status: 'active' }).select('_id phone');
   if (!users.length) return;
 
   await Notification.insertMany(
@@ -25,6 +26,12 @@ async function notifyRole({ role, orderId = null, type, title, message, linkPath
       link_path: linkPath
     }))
   );
+
+  if (role === 'staff' && type === 'new_order_available') {
+    sendStaffOrderWhatsappAlerts({ staff: users, title, message, linkPath }).catch((error) => {
+      console.warn(`Staff WhatsApp alerts skipped: ${error.message}`);
+    });
+  }
 }
 
 module.exports = {
