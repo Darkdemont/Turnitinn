@@ -322,14 +322,13 @@ export default function StaffOrderDetails() {
             </label>
             {aiSkipped ? (
               <label>
-                Reason for AI staff/customer
+                Reason AI report is not applicable (shown to the customer/wholesaler)
                 <input
                   type="text"
                   maxLength={300}
                   value={aiSkipReason}
                   onChange={(event) => setAiSkipReason(event.target.value)}
                   placeholder="e.g. Document is 34,000 words, over the AI tool's 30,000 word limit"
-                  required
                 />
               </label>
             ) : null}
