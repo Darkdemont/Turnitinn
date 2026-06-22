@@ -12,7 +12,10 @@ const orderFileSchema = new Schema(
     uploaded_at: { type: Date, default: Date.now },
     expires_at: Date,
     deleted_at: Date,
-    delete_reason: String
+    delete_reason: String,
+    word_count: Number,
+    language_warning: { type: Boolean, default: false },
+    word_count_warning: { type: Boolean, default: false }
   },
   schemaOptions(false)
 );

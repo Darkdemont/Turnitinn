@@ -9,17 +9,27 @@ function playNotificationTone() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const context = new AudioContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 820;
-    gain.gain.setValueAtTime(0.001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.18);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.2);
+    const notes = [
+      { frequency: 1040, start: 0, duration: 0.22 },
+      { frequency: 1320, start: 0.16, duration: 0.3 }
+    ];
+
+    notes.forEach(({ frequency, start, duration }) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const startTime = context.currentTime + start;
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.55, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration + 0.02);
+    });
+
+    window.setTimeout(() => context.close(), 700);
   } catch {
     // Browsers may block audio until the user interacts with the page.
   }

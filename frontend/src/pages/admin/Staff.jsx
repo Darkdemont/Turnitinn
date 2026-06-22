@@ -93,16 +93,19 @@ export default function AdminStaff() {
 
   async function clearStaffData(member) {
     const ok = window.confirm(
-      `Clear staff work data for ${member.name}? Active work will return to the available queue, and this staff member's earnings/counts will reset.`
+      `Clear staff work data for ${member.name}? Unstarted accepted orders return to the available queue, and this staff member's earnings/counts reset. Orders with reports already uploaded are left untouched for any owner (customer or wholesaler).`
     );
     if (!ok) return;
 
     setBusyId(member.id);
     setMessage('');
     try {
-      await apiRequest(`/admin/staff/${member.id}/clear-data`, { method: 'POST' });
+      const { result } = await apiRequest(`/admin/staff/${member.id}/clear-data`, { method: 'POST' });
       await loadStaff();
-      setMessage(`Staff data cleared for ${member.name}.`);
+      const retainedNote = result.orders_with_reports_retained
+        ? ` ${result.orders_with_reports_retained} order(s) with reports already uploaded were left untouched.`
+        : '';
+      setMessage(`Staff data cleared for ${member.name}.${retainedNote}`);
     } catch (error) {
       setMessage(error.message);
     } finally {

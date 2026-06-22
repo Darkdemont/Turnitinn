@@ -28,6 +28,8 @@ export default function ReportDownloadActions({
   reports = [],
   aiScore,
   similarityScore,
+  aiSkipped = false,
+  aiSkipReason = '',
   compact = false
 }) {
   const [message, setMessage] = useState('');
@@ -60,6 +62,14 @@ export default function ReportDownloadActions({
   return (
     <div className={`report-actions ${compact ? 'compact' : ''}`}>
       {actions.map(({ icon: Icon, label, report, score, type }) => {
+        if (type === 'ai' && aiSkipped) {
+          return (
+            <span className="report-download-button report-not-applicable" key={type}>
+              <Icon size={15} aria-hidden="true" />
+              <span>AI report not applicable{aiSkipReason ? ` — ${aiSkipReason}` : ''}</span>
+            </span>
+          );
+        }
         const expired = Boolean(report?.deleted_at);
         return (
           <button

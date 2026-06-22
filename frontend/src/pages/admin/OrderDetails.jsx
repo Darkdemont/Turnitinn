@@ -62,6 +62,8 @@ export default function AdminOrderDetails() {
               <div><dt>Wholesaler billing</dt><dd><StatusBadge value={order.wholesaler_payment_status || 'unpaid'} /></dd></div>
             ) : null}
             <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
+            <div><dt>AI score</dt><dd>{order.ai_skipped ? `Not applicable${order.ai_skip_reason ? ` — ${order.ai_skip_reason}` : ''}` : order.ai_score ?? '-'}</dd></div>
+            <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
             <div><dt>Created</dt><dd>{formatDate(order.created_at)}</dd></div>
           </dl>
         </div>

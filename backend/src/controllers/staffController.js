@@ -24,9 +24,16 @@ const optionalPercentage = z.preprocess(
   z.coerce.number().min(0).max(100).optional()
 );
 
+const optionalBoolean = z.preprocess(
+  (value) => (value === 'true' || value === true ? true : value === 'false' || value === false ? false : undefined),
+  z.boolean().optional()
+);
+
 const reportMetadataSchema = z.object({
   ai_score: optionalPercentage,
-  similarity_score: optionalPercentage
+  similarity_score: optionalPercentage,
+  ai_skipped: optionalBoolean,
+  ai_skip_reason: z.string().trim().max(300).optional()
 });
 
 function fileExpiryDate() {
@@ -58,7 +65,7 @@ function ownerOrderPath(order) {
 async function queueOrderSummary(order) {
   const files = await OrderFile.find(activeFileFilter(order._id))
     .sort({ _id: 1 })
-    .select('original_file_name file_size file_type uploaded_at');
+    .select('original_file_name file_size file_type uploaded_at word_count language_warning word_count_warning');
   const plainFiles = plainMany(files);
 
   return {
@@ -67,6 +74,7 @@ async function queueOrderSummary(order) {
     account_type: order.account_type,
     service_type: order.service_type,
     file_count: order.file_count,
+    has_file_warning: plainFiles.some((file) => file.language_warning || file.word_count_warning),
     total_file_size: plainFiles.reduce((total, file) => total + Number(file.file_size || 0), 0),
     files: plainFiles,
     payment_status: order.payment_status,
@@ -358,8 +366,19 @@ const uploadReport = asyncHandler(async (req, res) => {
     if (order.order_status === 'completed' || order.order_status === 'cancelled') {
       throw new HttpError(400, 'This order can no longer receive reports.');
     }
-    if (order.service_type === 'ai_similarity' && uploadedFiles.length !== REQUIRED_REPORT_FILE_COUNT) {
-      throw new HttpError(400, 'Upload both report files: similarity report and AI report.');
+
+    const aiSkipped = order.service_type === 'ai_similarity' && payload.ai_skipped === true;
+    if (order.service_type === 'ai_similarity') {
+      if (aiSkipped) {
+        if (uploadedFiles.length !== 1) {
+          throw new HttpError(400, 'Upload only the similarity report file when marking the AI report as not applicable.');
+        }
+        if (!payload.ai_skip_reason) {
+          throw new HttpError(400, 'Add a short reason why the AI report is not applicable (e.g. word count exceeds the AI tool limit).');
+        }
+      } else if (uploadedFiles.length !== REQUIRED_REPORT_FILE_COUNT) {
+        throw new HttpError(400, 'Upload both report files: similarity report and AI report.');
+      }
     }
 
     const storedFiles = await storeUploadedFiles(order.order_number, uploadedFiles, 'reports');
@@ -375,7 +394,11 @@ const uploadReport = asyncHandler(async (req, res) => {
     );
 
     order.order_status = 'report_uploaded';
-    if (payload.ai_score !== undefined) {
+    if (aiSkipped) {
+      order.ai_skipped = true;
+      order.ai_skip_reason = payload.ai_skip_reason;
+      order.ai_score = undefined;
+    } else if (payload.ai_score !== undefined) {
       order.ai_score = payload.ai_score;
     }
     if (payload.similarity_score !== undefined) {
@@ -421,9 +444,15 @@ const markCompleted = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'This order is already completed.');
   }
 
+  const requiredReportCount = order.ai_skipped ? 1 : REQUIRED_REPORT_FILE_COUNT;
   const reportCount = await ReportFile.countDocuments({ order_id: order._id });
-  if (reportCount < REQUIRED_REPORT_FILE_COUNT) {
-    throw new HttpError(400, 'Upload both report files before marking the order completed.');
+  if (reportCount < requiredReportCount) {
+    throw new HttpError(
+      400,
+      order.ai_skipped
+        ? 'Upload the similarity report before marking the order completed.'
+        : 'Upload both report files before marking the order completed.'
+    );
   }
 
   const staff = await User.findById(req.user.id).select('rate_per_file_usd');

@@ -18,20 +18,22 @@ const emptyWholesalerForm = {
 
 export default function AdminWholesalers() {
   const [wholesalers, setWholesalers] = useState(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [createForm, setCreateForm] = useState(emptyWholesalerForm);
   const [editForm, setEditForm] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState('');
 
-  async function loadWholesalers() {
-    const data = await apiRequest('/admin/wholesalers');
+  async function loadWholesalers(viewDeleted = showDeleted) {
+    const data = await apiRequest(`/admin/wholesalers${viewDeleted ? '?view=archived' : ''}`);
     setWholesalers(data.wholesalers);
   }
 
   useEffect(() => {
-    loadWholesalers().catch((err) => setMessage(err.message));
-  }, []);
+    setWholesalers(null);
+    loadWholesalers(showDeleted).catch((err) => setMessage(err.message));
+  }, [showDeleted]);
 
   async function createWholesaler(event) {
     event.preventDefault();
@@ -132,6 +134,39 @@ export default function AdminWholesalers() {
     }
   }
 
+  async function deleteWholesaler(member) {
+    const ok = window.confirm(
+      `Delete ${member.name}? Their login is deactivated and they disappear from this list. Order and billing history stay intact, and you can restore the account later.`
+    );
+    if (!ok) return;
+
+    setBusyId(member.id);
+    setMessage('');
+    try {
+      await apiRequest(`/admin/wholesalers/${member.id}/archive`, { method: 'POST' });
+      await loadWholesalers();
+      setMessage(`${member.name} deleted. Switch to "Show deleted" to restore.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  async function restoreWholesalerAccount(member) {
+    setBusyId(member.id);
+    setMessage('');
+    try {
+      await apiRequest(`/admin/wholesalers/${member.id}/restore`, { method: 'POST' });
+      await loadWholesalers();
+      setMessage(`${member.name} restored. Reactivate the login when ready.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
   const isError =
     message.includes('Could') ||
     message.includes('exists') ||
@@ -140,7 +175,15 @@ export default function AdminWholesalers() {
 
   return (
     <>
-      <PageHeader title="Wholesalers" eyebrow="postpaid clients" />
+      <PageHeader
+        title="Wholesalers"
+        eyebrow="postpaid clients"
+        actions={
+          <button className="ghost-button" type="button" onClick={() => setShowDeleted((value) => !value)}>
+            {showDeleted ? 'Show active' : 'Show deleted'}
+          </button>
+        }
+      />
       <FormMessage type={isError ? 'error' : 'success'}>{message}</FormMessage>
 
       <section className="split-grid">
@@ -194,7 +237,7 @@ export default function AdminWholesalers() {
       </section>
 
       <section className="panel">
-        <div className="panel-header"><h2>Wholesaler accounts</h2></div>
+        <div className="panel-header"><h2>{showDeleted ? 'Deleted wholesaler accounts' : 'Wholesaler accounts'}</h2></div>
         {!wholesalers ? <div className="screen-loader">Loading wholesalers...</div> : null}
         {wholesalers?.length ? (
           <div className="table-wrap">
@@ -226,25 +269,46 @@ export default function AdminWholesalers() {
                     <td>{formatLkr(member.unpaid_amount_lkr)}</td>
                     <td>{formatDate(member.created_at)}</td>
                     <td className="button-row compact">
-                      <button className="ghost-button" onClick={() => setEditForm({ ...member, password: '' })}>Edit</button>
-                      <button className="secondary-button" onClick={() => toggleStatus(member)} disabled={busy}>
-                        {member.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        className="primary-button small"
-                        onClick={() => clearPayment(member)}
-                        disabled={busy || !Number(member.unpaid_completed_file_count || 0)}
-                      >
-                        Clear paid
-                      </button>
-                      <button
-                        className="ghost-button small-inline danger"
-                        disabled={busyId === member.id || !Number(member.total_orders || 0)}
-                        onClick={() => clearWholesalerData(member)}
-                        type="button"
-                      >
-                        {busyId === member.id ? 'Clearing...' : 'Clear data'}
-                      </button>
+                      {showDeleted ? (
+                        <button
+                          className="primary-button small"
+                          disabled={busyId === member.id}
+                          onClick={() => restoreWholesalerAccount(member)}
+                          type="button"
+                        >
+                          {busyId === member.id ? 'Restoring...' : 'Restore'}
+                        </button>
+                      ) : (
+                        <>
+                          <button className="ghost-button" onClick={() => setEditForm({ ...member, password: '' })}>Edit</button>
+                          <button className="secondary-button" onClick={() => toggleStatus(member)} disabled={busy}>
+                            {member.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            className="primary-button small"
+                            onClick={() => clearPayment(member)}
+                            disabled={busy || !Number(member.unpaid_completed_file_count || 0)}
+                          >
+                            Clear paid
+                          </button>
+                          <button
+                            className="ghost-button small-inline danger"
+                            disabled={busyId === member.id || !Number(member.total_orders || 0)}
+                            onClick={() => clearWholesalerData(member)}
+                            type="button"
+                          >
+                            {busyId === member.id ? 'Clearing...' : 'Clear data'}
+                          </button>
+                          <button
+                            className="ghost-button small-inline danger"
+                            disabled={busyId === member.id}
+                            onClick={() => deleteWholesaler(member)}
+                            type="button"
+                          >
+                            {busyId === member.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -252,7 +316,9 @@ export default function AdminWholesalers() {
             </table>
           </div>
         ) : null}
-        {wholesalers && !wholesalers.length ? <EmptyState title="No wholesaler accounts" /> : null}
+        {wholesalers && !wholesalers.length ? (
+          <EmptyState title={showDeleted ? 'No deleted wholesaler accounts' : 'No wholesaler accounts'} />
+        ) : null}
       </section>
     </>
   );

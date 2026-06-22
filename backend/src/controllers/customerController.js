@@ -8,7 +8,8 @@ const { logActivity } = require('../utils/activityLogger');
 const { generateOrderNumber } = require('../utils/orderNumber');
 const { generatePackageNumber } = require('../utils/packageNumber');
 const { plain, plainMany, parseObjectId } = require('../utils/mongo');
-const { removeStoredFile, removeTempFiles, storeUploadedFiles } = require('../utils/fileStorage');
+const { removeStoredFile, removeTempFiles, resolveStoredFile, storeUploadedFiles } = require('../utils/fileStorage');
+const { analyzeStoredFile } = require('../utils/documentAnalysis');
 const { notifyRole } = require('../utils/notificationService');
 
 const createOrderSchema = z.object({
@@ -183,11 +184,15 @@ const createOrder = asyncHandler(async (req, res) => {
     });
 
     const storedFiles = await storeUploadedFiles(orderNumber, uploadedFiles, 'orders');
+    const analyses = await Promise.all(
+      storedFiles.map((file) => analyzeStoredFile(resolveStoredFile(file.file_path), file.original_file_name))
+    );
     const expiresAt = fileExpiryDate();
     await OrderFile.insertMany(
-      storedFiles.map((file) => ({
+      storedFiles.map((file, index) => ({
         order_id: order._id,
         ...file,
+        ...analyses[index],
         expires_at: expiresAt
       }))
     );
@@ -229,7 +234,8 @@ const createOrder = asyncHandler(async (req, res) => {
         original_file_name: file.original_file_name,
         file_size: file.file_size,
         file_type: file.file_type,
-        expires_at: expiresAt
+        expires_at: expiresAt,
+        ...analyses[index]
       }))
     });
   } catch (error) {

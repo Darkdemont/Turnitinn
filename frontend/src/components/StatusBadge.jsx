@@ -15,10 +15,17 @@ const statusTone = {
   pending_payment: 'warning'
 };
 
+const clientStatusLabels = {
+  accepted: 'Processing',
+  checking: 'Processing',
+  report_uploaded: 'Finalizing'
+};
+
 function label(value) {
   return String(value || '-').replaceAll('_', ' ');
 }
 
-export default function StatusBadge({ value }) {
-  return <span className={`status-badge ${statusTone[value] || 'neutral'}`}>{label(value)}</span>;
+export default function StatusBadge({ value, audience }) {
+  const text = audience === 'client' ? clientStatusLabels[value] || label(value) : label(value);
+  return <span className={`status-badge ${statusTone[value] || 'neutral'}`}>{text}</span>;
 }

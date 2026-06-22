@@ -916,6 +916,25 @@ td {
   transform: translateY(-2px);
 }
 
+.report-not-applicable {
+  color: var(--muted);
+  cursor: default;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.checkbox-row {
+  align-items: center;
+  display: flex;
+  flex-direction: row !important;
+  gap: 8px;
+}
+
+.checkbox-row input[type='checkbox'] {
+  height: 16px;
+  width: 16px;
+}
+
 .report-download-button small {
   background: var(--surface-alt);
   border-radius: 999px;
@@ -1238,6 +1257,13 @@ td {
   color: var(--warning);
 }
 
+.status-badge.tiny {
+  font-size: 0.68rem;
+  margin-left: 6px;
+  padding: 2px 8px;
+  text-transform: none;
+}
+
 .status-badge.danger {
   background: var(--danger-bg);
   border-color: rgba(251, 113, 133, 0.24);
@@ -1285,6 +1311,11 @@ td {
 .form-message.info {
   background: var(--success-bg);
   color: var(--success);
+}
+
+.form-message.warning {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .order-form {

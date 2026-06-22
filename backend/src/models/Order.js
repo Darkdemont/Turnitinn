@@ -28,6 +28,8 @@ const orderSchema = new Schema(
     completed_at: Date,
     ai_score: { type: Number, min: 0, max: 100 },
     similarity_score: { type: Number, min: 0, max: 100 },
+    ai_skipped: { type: Boolean, default: false },
+    ai_skip_reason: { type: String, maxlength: 300 },
     wholesaler_payment_status: { type: String, enum: ['not_applicable', 'unpaid', 'paid'], default: 'not_applicable' },
     wholesaler_payment_batch_id: { type: Types.ObjectId, ref: 'WholesalerPaymentBatch' }
   },

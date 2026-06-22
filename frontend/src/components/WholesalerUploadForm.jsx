@@ -10,11 +10,25 @@ function fileKey(file) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
+function buildFileWarning(uploadedFiles = []) {
+  const notes = uploadedFiles
+    .filter((file) => file.language_warning || file.word_count_warning)
+    .map((file) => {
+      const reasons = [];
+      if (file.language_warning) reasons.push('contains Sinhala text');
+      if (file.word_count_warning) reasons.push(`word count is ${file.word_count?.toLocaleString() ?? 'out of range'} (supported range is 300-28,000)`);
+      return `"${file.original_file_name}" ${reasons.join(' and ')}`;
+    });
+  if (!notes.length) return '';
+  return `Heads up: ${notes.join('; ')}. We only support English assignments within the supported word range - the checking tool may not process this file correctly.`;
+}
+
 export default function WholesalerUploadForm({ onSubmitted }) {
   const [files, setFiles] = useState([]);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('error');
+  const [warning, setWarning] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   function appendSelectedFiles(selectedFiles) {
@@ -45,6 +59,7 @@ export default function WholesalerUploadForm({ onSubmitted }) {
     event.preventDefault();
     setMessage('');
     setMessageType('error');
+    setWarning('');
 
     if (!files.length) {
       setMessage('Select at least one assignment file.');
@@ -68,6 +83,7 @@ export default function WholesalerUploadForm({ onSubmitted }) {
       setFileInputKey((key) => key + 1);
       setMessageType('success');
       setMessage(`${data.order.order_number} submitted with ${data.order.file_count} file(s).`);
+      setWarning(buildFileWarning(data.files));
       await onSubmitted?.(data);
     } catch (error) {
       setMessageType('error');
@@ -132,6 +148,7 @@ export default function WholesalerUploadForm({ onSubmitted }) {
         </div>
 
         <FormMessage type={messageType}>{message}</FormMessage>
+        <FormMessage type="warning">{warning}</FormMessage>
       </div>
     </form>
   );

@@ -10,7 +10,8 @@ const userSchema = new Schema(
     role: { type: String, enum: ['customer', 'staff', 'admin', 'wholesaler'], required: true },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     rate_per_file_usd: { type: Number, min: 0, default: 0.55 },
-    rate_per_file_lkr: { type: Number, min: 0, default: 0 }
+    rate_per_file_lkr: { type: Number, min: 0, default: 0 },
+    archived_at: Date
   },
   schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })
 );

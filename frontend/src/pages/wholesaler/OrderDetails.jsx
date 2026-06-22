@@ -41,8 +41,15 @@ export default function WholesalerOrderDetails() {
             <div><dt>Files</dt><dd>{order.file_count}</dd></div>
             <div><dt>Rate per file</dt><dd>{formatLkr(order.price_per_file_lkr)}</dd></div>
             <div><dt>Billing</dt><dd><StatusBadge value={order.wholesaler_payment_status || 'unpaid'} /></dd></div>
-            <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
-            <div><dt>AI score</dt><dd>{order.ai_score ?? '-'}</dd></div>
+            <div><dt>Status</dt><dd><StatusBadge value={order.order_status} audience="client" /></dd></div>
+            <div>
+              <dt>AI score</dt>
+              <dd>
+                {order.ai_skipped
+                  ? `Not applicable${order.ai_skip_reason ? ` — ${order.ai_skip_reason}` : ''}`
+                  : order.ai_score ?? '-'}
+              </dd>
+            </div>
             <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
             <div><dt>Staff</dt><dd>{order.staff_name || '-'}</dd></div>
             <div><dt>Created</dt><dd>{formatDate(order.created_at)}</dd></div>
@@ -57,6 +64,8 @@ export default function WholesalerOrderDetails() {
                 reports={reports}
                 aiScore={order.ai_score}
                 similarityScore={order.similarity_score}
+                aiSkipped={order.ai_skipped}
+                aiSkipReason={order.ai_skip_reason}
               />
               {reports.map((report) => (
                 <div className="file-row" key={report.id}>

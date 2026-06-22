@@ -122,17 +122,6 @@ async function purgeOrderFiles(orderIds, reason) {
   };
 }
 
-async function purgeReportFiles(filter) {
-  const reportFiles = await ReportFile.find(filter);
-  const clearedBytes = await removeStoredFilesForRows(reportFiles);
-  await ReportFile.deleteMany(filter);
-
-  return {
-    report_file_count: reportFiles.length,
-    cleared_bytes: clearedBytes
-  };
-}
-
 async function clearOwnerData({ ownerId, accountType, reason }) {
   const orders = await Order.find({ customer_id: ownerId, account_type: accountType }).select('_id');
   const orderIds = orders.map((order) => order._id);
@@ -524,27 +513,28 @@ const clearStaffData = asyncHandler(async (req, res) => {
     throw new HttpError(404, 'Staff member not found.');
   }
 
-  const activeOrders = await Order.find({
+  // Orders with reports already uploaded belong to whoever owns them (customer or
+  // wholesaler) and must never be bounced/purged just because the staff member who
+  // worked on them is being reset - only unstarted work (no reports yet) is releasable.
+  const releasableOrders = await Order.find({
     accepted_by_staff_id: staffId,
-    order_status: { $in: activeStaffStatuses }
+    order_status: { $in: ['accepted', 'checking'] }
   }).select('_id');
+  const reportsRetainedCount = await Order.countDocuments({
+    accepted_by_staff_id: staffId,
+    order_status: 'report_uploaded'
+  });
   const completedOrders = await Order.find({
     accepted_by_staff_id: staffId,
     order_status: 'completed'
   }).select('_id');
 
-  const activeOrderIds = activeOrders.map((order) => order._id);
+  const releasableOrderIds = releasableOrders.map((order) => order._id);
   const completedOrderIds = completedOrders.map((order) => order._id);
-  const reportResult = activeOrderIds.length
-    ? await purgeReportFiles({
-        order_id: { $in: activeOrderIds },
-        uploaded_by_staff_id: staffId
-      })
-    : { report_file_count: 0, cleared_bytes: 0 };
 
   const [released, unassigned, declinesCleared, earningsDeleted, notificationsDeleted] = await Promise.all([
     Order.updateMany(
-      { _id: { $in: activeOrderIds } },
+      { _id: { $in: releasableOrderIds } },
       {
         $set: { order_status: 'available' },
         $unset: {
@@ -575,17 +565,18 @@ const clearStaffData = asyncHandler(async (req, res) => {
   const result = {
     active_orders_released: released.modifiedCount || 0,
     completed_orders_unassigned: unassigned.modifiedCount || 0,
+    orders_with_reports_retained: reportsRetainedCount,
     declined_orders_cleared: declinesCleared.modifiedCount || 0,
     earnings_deleted: earningsDeleted.deletedCount || 0,
     notifications_deleted: notificationsDeleted.deletedCount || 0,
-    report_file_count: reportResult.report_file_count,
-    cleared_bytes: reportResult.cleared_bytes
+    report_file_count: 0,
+    cleared_bytes: 0
   };
 
   await logActivity({
     userId: req.user.id,
     action: 'staff_data_cleared',
-    description: `${req.user.email} cleared staff data for ${staff.email}: ${result.active_orders_released} active order(s) released, ${result.completed_orders_unassigned} completed order(s) unassigned.`,
+    description: `${req.user.email} cleared staff data for ${staff.email}: ${result.active_orders_released} active order(s) released, ${result.completed_orders_unassigned} completed order(s) unassigned, ${result.orders_with_reports_retained} order(s) with reports left untouched.`,
     ipAddress: req.ip
   });
 
@@ -599,7 +590,11 @@ const clearStaffData = asyncHandler(async (req, res) => {
 });
 
 const listWholesalers = asyncHandler(async (req, res) => {
-  const wholesalers = await User.find({ role: 'wholesaler' }).sort({ created_at: -1 });
+  const filter =
+    req.query.view === 'archived'
+      ? { role: 'wholesaler', archived_at: { $exists: true } }
+      : { role: 'wholesaler', archived_at: { $exists: false } };
+  const wholesalers = await User.find(filter).sort({ created_at: -1 });
   const rows = await Promise.all(
     wholesalers.map(async (wholesaler) => ({
       ...accountPlain(wholesaler),
@@ -692,6 +687,50 @@ const updateWholesalerStatus = asyncHandler(async (req, res) => {
     userId: req.user.id,
     action: 'wholesaler_status_updated',
     description: `${wholesaler.email} set to ${payload.status}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ wholesaler: accountPlain(wholesaler) });
+});
+
+const archiveWholesaler = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const wholesaler = await User.findOneAndUpdate(
+    { _id: wholesalerId, role: 'wholesaler' },
+    { status: 'inactive', archived_at: new Date() },
+    { new: true }
+  );
+
+  if (!wholesaler) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_archived',
+    description: `${req.user.email} deleted (archived) wholesaler ${wholesaler.email}. Login deactivated and hidden from the active list; order history is kept.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ wholesaler: accountPlain(wholesaler) });
+});
+
+const restoreWholesaler = asyncHandler(async (req, res) => {
+  const wholesalerId = parseObjectId(req.params.id);
+  const wholesaler = await User.findOneAndUpdate(
+    { _id: wholesalerId, role: 'wholesaler' },
+    { $unset: { archived_at: '' } },
+    { new: true }
+  );
+
+  if (!wholesaler) {
+    throw new HttpError(404, 'Wholesaler account not found.');
+  }
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'wholesaler_restored',
+    description: `${req.user.email} restored wholesaler ${wholesaler.email} from deleted. Account is still inactive until reactivated.`,
     ipAddress: req.ip
   });
 
@@ -894,6 +933,7 @@ const activityLogs = asyncHandler(async (req, res) => {
 
 module.exports = {
   activityLogs,
+  archiveWholesaler,
   clearCustomerData,
   clearStaffData,
   clearWholesalerData,
@@ -906,6 +946,7 @@ module.exports = {
   listOrders,
   listStaff,
   listWholesalers,
+  restoreWholesaler,
   revenueSummary,
   staffEarnings,
   updateStaff,

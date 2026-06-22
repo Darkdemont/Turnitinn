@@ -20,6 +20,8 @@ export default function StaffOrderDetails() {
     similarity_score: '',
     ai_score: ''
   });
+  const [aiSkipped, setAiSkipped] = useState(false);
+  const [aiSkipReason, setAiSkipReason] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -31,6 +33,13 @@ export default function StaffOrderDetails() {
   useEffect(() => {
     loadOrder().catch((err) => setMessage(err.message));
   }, [id]);
+
+  useEffect(() => {
+    if (data?.order?.ai_skipped) {
+      setAiSkipped(true);
+      setAiSkipReason(data.order.ai_skip_reason || '');
+    }
+  }, [data?.order?.ai_skipped, data?.order?.ai_skip_reason]);
 
   async function acceptOrder() {
     setBusy(true);
@@ -93,20 +102,34 @@ export default function StaffOrderDetails() {
 
   async function uploadReport(event) {
     event.preventDefault();
-    if (!reportUploads.similarity || !reportUploads.ai) {
+    if (!reportUploads.similarity) {
+      setMessage('Select the similarity report file before uploading.');
+      return;
+    }
+    if (!aiSkipped && !reportUploads.ai) {
       setMessage('Select both report files before uploading.');
+      return;
+    }
+    if (aiSkipped && !aiSkipReason.trim()) {
+      setMessage('Add a reason why the AI report is not applicable.');
       return;
     }
     setBusy(true);
     setMessage('');
     const body = new FormData();
     body.append('reports', reportUploads.similarity);
-    body.append('reports', reportUploads.ai);
+    if (!aiSkipped) {
+      body.append('reports', reportUploads.ai);
+    }
     if (reportMeta.similarity_score !== '') {
       body.append('similarity_score', reportMeta.similarity_score);
     }
-    if (reportMeta.ai_score !== '') {
+    if (!aiSkipped && reportMeta.ai_score !== '') {
       body.append('ai_score', reportMeta.ai_score);
+    }
+    if (aiSkipped) {
+      body.append('ai_skipped', 'true');
+      body.append('ai_skip_reason', aiSkipReason.trim());
     }
     try {
       await apiRequest(`/staff/orders/${id}/reports`, {
@@ -115,6 +138,8 @@ export default function StaffOrderDetails() {
       });
       setReportUploads({ similarity: null, ai: null });
       setReportMeta({ similarity_score: '', ai_score: '' });
+      setAiSkipped(false);
+      setAiSkipReason('');
       await loadOrder();
       setMessage('Reports uploaded.');
     } catch (error) {
@@ -182,7 +207,14 @@ export default function StaffOrderDetails() {
             <div><dt>Service</dt><dd>{serviceLabel(order.service_type)}</dd></div>
             <div><dt>Files</dt><dd>{order.file_count}</dd></div>
             <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
-            <div><dt>AI score</dt><dd>{order.ai_score ?? '-'}</dd></div>
+            <div>
+              <dt>AI score</dt>
+              <dd>
+                {order.ai_skipped
+                  ? `Not applicable${order.ai_skip_reason ? ` — ${order.ai_skip_reason}` : ''}`
+                  : order.ai_score ?? '-'}
+              </dd>
+            </div>
             <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
             <div><dt>Accepted</dt><dd>{formatDate(order.accepted_at)}</dd></div>
             <div><dt>Completed</dt><dd>{formatDate(order.completed_at)}</dd></div>
@@ -220,7 +252,12 @@ export default function StaffOrderDetails() {
               <div className="file-row" key={file.id}>
                 <div>
                   <span>{file.original_file_name}</span>
-                  <small>{formatBytes(file.file_size)} - {formatDate(file.uploaded_at)}</small>
+                  <small>
+                    {formatBytes(file.file_size)} - {formatDate(file.uploaded_at)}
+                    {file.word_count != null ? ` - ${file.word_count.toLocaleString()} words` : ''}
+                    {file.word_count_warning ? ' (outside 300-28,000 range)' : ''}
+                    {file.language_warning ? ' (Sinhala text detected)' : ''}
+                  </small>
                 </div>
                 <button className="ghost-button" onClick={() => downloadFile(file)}>
                   <Download size={18} aria-hidden="true" />
@@ -237,7 +274,7 @@ export default function StaffOrderDetails() {
           <form className="form-stack" onSubmit={uploadReport}>
             <div className="panel-header">
               <h2>Upload checked reports</h2>
-              <span className="muted-label">{reports.length}/2 uploaded</span>
+              <span className="muted-label">{reports.length}/{aiSkipped || order.ai_skipped ? 1 : 2} uploaded</span>
             </div>
             <div className="report-upload-grid">
               <label>
@@ -253,20 +290,49 @@ export default function StaffOrderDetails() {
                   }
                 />
               </label>
-              <label>
-                AI report
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt,.zip"
-                  onChange={(event) =>
-                    setReportUploads({
-                      ...reportUploads,
-                      ai: event.target.files?.[0] || null
-                    })
+              {!aiSkipped ? (
+                <label>
+                  AI report
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt,.zip"
+                    onChange={(event) =>
+                      setReportUploads({
+                        ...reportUploads,
+                        ai: event.target.files?.[0] || null
+                      })
+                    }
+                  />
+                </label>
+              ) : null}
+            </div>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={aiSkipped}
+                onChange={(event) => {
+                  setAiSkipped(event.target.checked);
+                  if (event.target.checked) {
+                    setReportUploads((current) => ({ ...current, ai: null }));
+                    setReportMeta((current) => ({ ...current, ai_score: '' }));
                   }
+                }}
+              />
+              AI report not applicable (document word count exceeds the AI tool's limit)
+            </label>
+            {aiSkipped ? (
+              <label>
+                Reason for AI staff/customer
+                <input
+                  type="text"
+                  maxLength={300}
+                  value={aiSkipReason}
+                  onChange={(event) => setAiSkipReason(event.target.value)}
+                  placeholder="e.g. Document is 34,000 words, over the AI tool's 30,000 word limit"
+                  required
                 />
               </label>
-            </div>
+            ) : null}
             <div className="report-upload-grid">
               <label>
                 Similarity %
@@ -285,23 +351,25 @@ export default function StaffOrderDetails() {
                   placeholder="Optional"
                 />
               </label>
-              <label>
-                AI %
-                <input
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  type="number"
-                  value={reportMeta.ai_score}
-                  onChange={(event) =>
-                    setReportMeta({
-                      ...reportMeta,
-                      ai_score: event.target.value
-                    })
-                  }
-                  placeholder="Optional"
-                />
-              </label>
+              {!aiSkipped ? (
+                <label>
+                  AI %
+                  <input
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    type="number"
+                    value={reportMeta.ai_score}
+                    onChange={(event) =>
+                      setReportMeta({
+                        ...reportMeta,
+                        ai_score: event.target.value
+                      })
+                    }
+                    placeholder="Optional"
+                  />
+                </label>
+              ) : null}
             </div>
             <div className="button-row">
               <button className="primary-button" type="submit" disabled={busy}>
@@ -312,7 +380,7 @@ export default function StaffOrderDetails() {
                 className="secondary-button"
                 type="button"
                 onClick={completeOrder}
-                disabled={busy || reports.length < 2}
+                disabled={busy || reports.length < (order.ai_skipped ? 1 : 2)}
               >
                 <CheckCircle2 size={18} aria-hidden="true" />
                 Mark completed

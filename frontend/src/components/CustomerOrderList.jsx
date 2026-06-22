@@ -17,7 +17,7 @@ export default function CustomerOrderList({ basePath = '/customer/orders', order
           </div>
 
           <div className="customer-order-status">
-            <StatusBadge value={order.order_status} />
+            <StatusBadge value={order.order_status} audience="client" />
             <small>{formatDate(order.created_at)}</small>
           </div>
 
@@ -26,6 +26,8 @@ export default function CustomerOrderList({ basePath = '/customer/orders', order
             reports={order.reports}
             aiScore={order.ai_score}
             similarityScore={order.similarity_score}
+            aiSkipped={order.ai_skipped}
+            aiSkipReason={order.ai_skip_reason}
           />
 
           <div className="customer-order-actions">

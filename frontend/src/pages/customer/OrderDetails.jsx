@@ -38,8 +38,15 @@ export default function CustomerOrderDetails() {
             <div><dt>Price per file</dt><dd>{formatLkr(order.price_per_file_lkr)}</dd></div>
             <div><dt>Total</dt><dd>{formatLkr(order.total_amount_lkr)}</dd></div>
             <div><dt>Payment</dt><dd><StatusBadge value={order.payment_status} /></dd></div>
-            <div><dt>Status</dt><dd><StatusBadge value={order.order_status} /></dd></div>
-            <div><dt>AI score</dt><dd>{order.ai_score ?? '-'}</dd></div>
+            <div><dt>Status</dt><dd><StatusBadge value={order.order_status} audience="client" /></dd></div>
+            <div>
+              <dt>AI score</dt>
+              <dd>
+                {order.ai_skipped
+                  ? `Not applicable${order.ai_skip_reason ? ` — ${order.ai_skip_reason}` : ''}`
+                  : order.ai_score ?? '-'}
+              </dd>
+            </div>
             <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
             <div><dt>Staff</dt><dd>{order.staff_name || '-'}</dd></div>
             <div><dt>Created</dt><dd>{formatDate(order.created_at)}</dd></div>
@@ -54,6 +61,8 @@ export default function CustomerOrderDetails() {
                 reports={reports}
                 aiScore={order.ai_score}
                 similarityScore={order.similarity_score}
+                aiSkipped={order.ai_skipped}
+                aiSkipReason={order.ai_skip_reason}
               />
               {reports.map((report) => (
                 <div className="file-row" key={report.id}>

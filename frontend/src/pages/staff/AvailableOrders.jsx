@@ -103,7 +103,14 @@ export default function StaffAvailableOrders() {
                     </td>
                     <td>
                       <div className="file-name-stack">
-                        <span>{order.files?.[0]?.original_file_name || `${order.file_count} file(s)`}</span>
+                        <span>
+                          {order.files?.[0]?.original_file_name || `${order.file_count} file(s)`}
+                          {order.has_file_warning ? (
+                            <span className="status-badge warning tiny" title="Word count or language may need a closer look">
+                              check
+                            </span>
+                          ) : null}
+                        </span>
                         <small>
                           {order.files?.[0]
                             ? `${formatBytes(order.files[0].file_size)}${order.file_count > 1 ? ` first file, ${formatBytes(order.total_file_size)} total` : ''}`

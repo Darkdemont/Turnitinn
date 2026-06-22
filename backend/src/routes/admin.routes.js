@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   activityLogs,
+  archiveWholesaler,
   clearCustomerData,
   clearStaffData,
   clearWholesalerData,
@@ -13,6 +14,7 @@ const {
   listOrders,
   listStaff,
   listWholesalers,
+  restoreWholesaler,
   revenueSummary,
   staffEarnings,
   updateStaff,
@@ -52,6 +54,8 @@ router.patch('/wholesalers/:id', updateWholesaler);
 router.patch('/wholesalers/:id/status', updateWholesalerStatus);
 router.post('/wholesalers/:id/clear-payment', clearWholesalerPayment);
 router.post('/wholesalers/:id/clear-data', clearWholesalerData);
+router.post('/wholesalers/:id/archive', archiveWholesaler);
+router.post('/wholesalers/:id/restore', restoreWholesaler);
 router.get('/staff-earnings', staffEarnings);
 router.get('/revenue-summary', revenueSummary);
 router.get('/activity-logs', activityLogs);
