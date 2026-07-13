@@ -1,10 +1,11 @@
 import { Save, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatDate, formatLkr } from '../../utils/format';
 
 const emptyWholesalerForm = {
@@ -25,15 +26,16 @@ export default function AdminWholesalers() {
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState('');
 
-  async function loadWholesalers(viewDeleted = showDeleted) {
-    const data = await apiRequest(`/admin/wholesalers${viewDeleted ? '?view=archived' : ''}`);
+  const loadWholesalers = useCallback(async () => {
+    const data = await apiRequest(`/admin/wholesalers${showDeleted ? '?view=archived' : ''}`);
     setWholesalers(data.wholesalers);
-  }
+  }, [showDeleted]);
 
   useEffect(() => {
     setWholesalers(null);
-    loadWholesalers(showDeleted).catch((err) => setMessage(err.message));
-  }, [showDeleted]);
+    loadWholesalers().catch((err) => setMessage(err.message));
+  }, [loadWholesalers]);
+  useAutoRefresh(loadWholesalers);
 
   async function createWholesaler(event) {
     event.preventDefault();

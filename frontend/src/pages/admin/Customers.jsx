@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatDate, formatLkr } from '../../utils/format';
 
 export default function AdminCustomers() {
@@ -12,14 +13,15 @@ export default function AdminCustomers() {
   const [message, setMessage] = useState('');
   const [busyId, setBusyId] = useState('');
 
-  async function loadCustomers() {
+  const loadCustomers = useCallback(async () => {
     const data = await apiRequest('/admin/customers');
     setCustomers(data.customers);
-  }
+  }, []);
 
   useEffect(() => {
     loadCustomers().catch((err) => setError(err.message));
-  }, []);
+  }, [loadCustomers]);
+  useAutoRefresh(loadCustomers);
 
   async function clearCustomerData(customer) {
     const ok = window.confirm(

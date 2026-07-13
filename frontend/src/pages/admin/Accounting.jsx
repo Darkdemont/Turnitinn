@@ -5,6 +5,7 @@ import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatLkr, formatUsd } from '../../utils/format';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -72,6 +73,7 @@ export default function AdminAccounting() {
   useEffect(() => {
     loadAccounting().catch((err) => setMessage(err.message));
   }, [loadAccounting]);
+  useAutoRefresh(loadAccounting);
 
   function applyPreset(preset) {
     const nextRange = rangePreset(preset);

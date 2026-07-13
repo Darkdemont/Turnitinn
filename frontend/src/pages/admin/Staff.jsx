@@ -1,10 +1,11 @@
 import { Save, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatDate, formatUsd } from '../../utils/format';
 
 const emptyStaffForm = {
@@ -24,14 +25,15 @@ export default function AdminStaff() {
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState('');
 
-  async function loadStaff() {
+  const loadStaff = useCallback(async () => {
     const data = await apiRequest('/admin/staff');
     setStaff(data.staff);
-  }
+  }, []);
 
   useEffect(() => {
     loadStaff().catch((err) => setMessage(err.message));
-  }, []);
+  }, [loadStaff]);
+  useAutoRefresh(loadStaff);
 
   async function createStaff(event) {
     event.preventDefault();

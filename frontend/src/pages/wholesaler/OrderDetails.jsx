@@ -51,7 +51,6 @@ export default function WholesalerOrderDetails() {
               </dd>
             </div>
             <div><dt>Similarity score</dt><dd>{order.similarity_score ?? '-'}</dd></div>
-            <div><dt>Staff</dt><dd>{order.staff_name || '-'}</dd></div>
             <div><dt>Created</dt><dd>{formatDate(order.created_at)}</dd></div>
           </dl>
         </div>

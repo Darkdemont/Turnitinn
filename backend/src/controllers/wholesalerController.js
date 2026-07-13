@@ -240,16 +240,14 @@ const getOrderDetails = asyncHandler(async (req, res) => {
     throw new HttpError(404, 'Order not found.');
   }
 
-  const [files, reports, staff] = await Promise.all([
+  const [files, reports] = await Promise.all([
     OrderFile.find(fileHistoryFilter(orderId)).sort({ _id: 1 }),
-    ReportFile.find(fileHistoryFilter(orderId)).sort({ uploaded_at: -1 }),
-    order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
+    ReportFile.find(fileHistoryFilter(orderId)).sort({ uploaded_at: -1 })
   ]);
 
   res.json({
     order: {
-      ...plain(order),
-      staff_name: staff?.name || null
+      ...plain(order)
     },
     files: plainMany(files),
     reports: plainMany(reports)

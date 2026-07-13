@@ -1,21 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { accountTypeLabel, formatDate, formatLkr, formatUsd, serviceLabel } from '../../utils/format';
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
     apiRequest('/admin/dashboard')
       .then(setData)
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+  useAutoRefresh(loadDashboard);
 
   if (error) return <EmptyState title="Could not load dashboard" text={error} />;
   if (!data) return <div className="screen-loader">Loading dashboard...</div>;

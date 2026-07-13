@@ -1,10 +1,11 @@
 import { HardDrive, RefreshCw, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatBytes } from '../../utils/format';
 
 function categoryRows(storage) {
@@ -20,14 +21,15 @@ export default function AdminStorage() {
   const [message, setMessage] = useState('');
   const [busyMode, setBusyMode] = useState('');
 
-  async function loadStorage() {
+  const loadStorage = useCallback(async () => {
     const data = await apiRequest('/admin/storage');
     setStorage(data.storage);
-  }
+  }, []);
 
   useEffect(() => {
     loadStorage().catch((err) => setMessage(err.message));
-  }, []);
+  }, [loadStorage]);
+  useAutoRefresh(loadStorage);
 
   async function runCleanup(mode, olderThanHours) {
     const labels = {

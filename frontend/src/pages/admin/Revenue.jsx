@@ -1,19 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatLkr, serviceLabel } from '../../utils/format';
 
 export default function AdminRevenue() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    apiRequest('/admin/revenue-summary')
+  const loadRevenue = useCallback(() => {
+    return apiRequest('/admin/revenue-summary')
       .then(setData)
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    loadRevenue();
+  }, [loadRevenue]);
+  useAutoRefresh(loadRevenue);
 
   if (error) return <EmptyState title="Could not load revenue" text={error} />;
   if (!data) return <div className="screen-loader">Loading revenue...</div>;

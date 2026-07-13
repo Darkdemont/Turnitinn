@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatDate } from '../../utils/format';
 
 export default function AdminActivityLogs() {
   const [logs, setLogs] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    apiRequest('/admin/activity-logs')
+  const loadLogs = useCallback(() => {
+    return apiRequest('/admin/activity-logs')
       .then((data) => setLogs(data.activity_logs))
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
+  useAutoRefresh(loadLogs);
 
   return (
     <>

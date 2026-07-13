@@ -1,20 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { accountTypeLabel, formatDate, formatLkr, serviceLabel } from '../../utils/format';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const loadOrders = useCallback(() => {
     apiRequest('/admin/orders')
       .then((data) => setOrders(data.orders))
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+  useAutoRefresh(loadOrders);
 
   return (
     <>

@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatUsd } from '../../utils/format';
 
 export default function AdminStaffEarnings() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    apiRequest('/admin/staff-earnings')
+  const loadEarnings = useCallback(() => {
+    return apiRequest('/admin/staff-earnings')
       .then((data) => setRows(data.staff_earnings))
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    loadEarnings();
+  }, [loadEarnings]);
+  useAutoRefresh(loadEarnings);
 
   return (
     <>

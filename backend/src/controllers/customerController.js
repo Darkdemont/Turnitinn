@@ -1,6 +1,6 @@
 const { z } = require('zod');
 const env = require('../config/env');
-const { CustomerPackage, Order, OrderFile, ReportFile, User } = require('../models');
+const { CustomerPackage, Order, OrderFile, ReportFile } = require('../models');
 const { PRICES_LKR } = require('../constants/pricing');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
@@ -257,18 +257,16 @@ const getOrderDetails = asyncHandler(async (req, res) => {
     throw new HttpError(404, 'Order not found.');
   }
 
-  const [files, reports, packageNumber, staff] = await Promise.all([
+  const [files, reports, packageNumber] = await Promise.all([
     OrderFile.find(fileHistoryFilter(orderId)).sort({ _id: 1 }),
     ReportFile.find(fileHistoryFilter(orderId)).sort({ uploaded_at: -1 }),
-    packageNumberFor(order.customer_package_id),
-    order.accepted_by_staff_id ? User.findById(order.accepted_by_staff_id).select('name') : null
+    packageNumberFor(order.customer_package_id)
   ]);
 
   res.json({
     order: {
       ...plain(order),
-      package_number: packageNumber,
-      staff_name: staff?.name || null
+      package_number: packageNumber
     },
     files: plainMany(files),
     reports: plainMany(reports)

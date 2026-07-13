@@ -1,11 +1,12 @@
 import { Download } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { apiRequest, downloadProtectedFile } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { accountTypeLabel, formatBytes, formatDate, formatLkr, serviceLabel } from '../../utils/format';
 
 export default function AdminOrderDetails() {
@@ -13,11 +14,16 @@ export default function AdminOrderDetails() {
   const [data, setData] = useState(null);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
+  const loadOrder = useCallback(() => {
     apiRequest(`/admin/orders/${id}`)
       .then(setData)
       .catch((err) => setMessage(err.message));
   }, [id]);
+
+  useEffect(() => {
+    loadOrder();
+  }, [loadOrder]);
+  useAutoRefresh(loadOrder);
 
   async function downloadOrderFile(file) {
     setMessage('');
