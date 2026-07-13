@@ -444,14 +444,15 @@ const markCompleted = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'This order is already completed.');
   }
 
-  const requiredReportCount = order.ai_skipped ? 1 : REQUIRED_REPORT_FILE_COUNT;
+  const needsBothReports = order.service_type === 'ai_similarity' && !order.ai_skipped;
+  const requiredReportCount = needsBothReports ? REQUIRED_REPORT_FILE_COUNT : 1;
   const reportCount = await ReportFile.countDocuments({ order_id: order._id });
   if (reportCount < requiredReportCount) {
     throw new HttpError(
       400,
-      order.ai_skipped
-        ? 'Upload the similarity report before marking the order completed.'
-        : 'Upload both report files before marking the order completed.'
+      needsBothReports
+        ? 'Upload both report files before marking the order completed.'
+        : 'Upload the similarity report before marking the order completed.'
     );
   }
 
