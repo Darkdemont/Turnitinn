@@ -156,8 +156,10 @@ export default function StaffDashboard() {
     const uploads = reportUploads[orderId] || {};
     const meta = reportMeta[orderId] || {};
 
-    if (!uploads.similarity || !uploads.ai) {
-      setMessage('Select both report files before uploading.');
+    const order = (data?.active_orders || []).find((o) => o.id === orderId);
+    const needsAi = !order?.ai_skipped;
+    if (!uploads.similarity || (needsAi && !uploads.ai)) {
+      setMessage(needsAi ? 'Select both report files before uploading.' : 'Select the similarity report file before uploading.');
       return;
     }
 
@@ -165,7 +167,7 @@ export default function StaffDashboard() {
     setUploadBusyId(orderId);
     const body = new FormData();
     body.append('reports', uploads.similarity);
-    body.append('reports', uploads.ai);
+    if (needsAi) body.append('reports', uploads.ai);
     if (meta.similarity_score !== undefined && meta.similarity_score !== '') {
       body.append('similarity_score', meta.similarity_score);
     }
@@ -417,19 +419,19 @@ export default function StaffDashboard() {
                       </div>
 
                       <div className="quick-report-footer">
-                        <span className="muted-label">{order.report_count || 0}/2 reports uploaded</span>
+                        <span className="muted-label">{order.report_count || 0}/{order.ai_skipped ? 1 : 2} reports uploaded</span>
                         <div className="button-row compact">
                           <button
                             className="primary-button small"
                             disabled={
                               uploadBusyId === order.id ||
-                              (order.report_count || 0) >= 2 ||
+                              (order.report_count || 0) >= (order.ai_skipped ? 1 : 2) ||
                               !uploads.similarity ||
-                              !uploads.ai
+                              (!order.ai_skipped && !uploads.ai)
                             }
                             type="submit"
                           >
-                            {(order.report_count || 0) >= 2
+                            {(order.report_count || 0) >= (order.ai_skipped ? 1 : 2)
                               ? 'Reports uploaded'
                               : uploadBusyId === order.id
                                 ? 'Uploading...'
@@ -437,7 +439,7 @@ export default function StaffDashboard() {
                           </button>
                           <button
                             className="secondary-button small"
-                            disabled={completeBusyId === order.id || (order.report_count || 0) < 2}
+                            disabled={completeBusyId === order.id || (order.report_count || 0) < (order.ai_skipped ? 1 : 2)}
                             onClick={() => completeOrder(order.id)}
                             type="button"
                           >
