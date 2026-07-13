@@ -79,7 +79,7 @@ export default function StaffDashboard() {
     setMessage('');
     setDecliningId(orderId);
     try {
-      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'POST' });
       await loadDashboard();
       setMessage('Order declined. It will not show in your queue again.');
     } catch (err) {
@@ -194,7 +194,7 @@ export default function StaffDashboard() {
     setMessage('');
     setCompleteBusyId(orderId);
     try {
-      await apiRequest(`/staff/orders/${orderId}/complete`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${orderId}/complete`, { method: 'POST' });
       await loadDashboard();
       setMessage('Order marked completed.');
     } catch (err) {
@@ -208,7 +208,7 @@ export default function StaffDashboard() {
     setMessage('');
     setReleaseBusyId(orderId);
     try {
-      await apiRequest(`/staff/orders/${orderId}/release`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${orderId}/release`, { method: 'POST' });
       resetQuickUpload(orderId);
       await loadDashboard();
       setMessage('Order released back to the available queue.');

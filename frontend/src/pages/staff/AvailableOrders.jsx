@@ -60,7 +60,7 @@ export default function StaffAvailableOrders() {
     setMessage('');
     setDecliningId(orderId);
     try {
-      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${orderId}/decline`, { method: 'POST' });
       await loadOrders();
       setMessage('Order declined. It will not show in your queue again.');
     } catch (error) {

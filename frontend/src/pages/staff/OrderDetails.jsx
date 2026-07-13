@@ -59,7 +59,7 @@ export default function StaffOrderDetails() {
     setBusy(true);
     setMessage('');
     try {
-      await apiRequest(`/staff/orders/${id}/decline`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${id}/decline`, { method: 'POST' });
       navigate('/staff/available-orders', { replace: true });
     } catch (error) {
       setMessage(error.message);
@@ -72,7 +72,7 @@ export default function StaffOrderDetails() {
     setBusy(true);
     setMessage('');
     try {
-      await apiRequest(`/staff/orders/${id}/release`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${id}/release`, { method: 'POST' });
       await loadOrder();
       setMessage('Order released back to the available queue.');
     } catch (error) {
@@ -153,7 +153,7 @@ export default function StaffOrderDetails() {
     setBusy(true);
     setMessage('');
     try {
-      await apiRequest(`/staff/orders/${id}/complete`, { method: 'PATCH' });
+      await apiRequest(`/staff/orders/${id}/complete`, { method: 'POST' });
       await loadOrder();
       setMessage('Order marked completed.');
     } catch (error) {
