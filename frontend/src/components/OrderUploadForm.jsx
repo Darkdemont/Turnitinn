@@ -4,7 +4,20 @@ import { apiRequest } from '../api/client';
 import { formatBytes, formatLkr } from '../utils/format';
 import FormMessage from './FormMessage';
 
-const PRICE_PER_FILE = 450;
+const SERVICE_TYPES = [
+  {
+    value: 'ai_similarity',
+    label: 'AI + Similarity check',
+    description: 'Detects AI-generated content AND checks similarity',
+    pricePerFile: 450
+  },
+  {
+    value: 'similarity_only',
+    label: 'Similarity check only',
+    description: 'Checks plagiarism similarity only',
+    pricePerFile: 350
+  }
+];
 
 const packages = [
   {
@@ -45,6 +58,8 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
   const hasPackageBalance = availablePackages.length > 0;
   const [mode, setMode] = useState(hasPackageBalance ? 'existing' : 'new');
   const [selectedPackage, setSelectedPackage] = useState(packages[0]);
+  const [serviceType, setServiceType] = useState('ai_similarity');
+  const selectedService = SERVICE_TYPES.find((s) => s.value === serviceType) || SERVICE_TYPES[0];
   const [selectedExistingPackageId, setSelectedExistingPackageId] = useState(
     availablePackages[0]?.id || ''
   );
@@ -65,10 +80,11 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
     mode === 'existing'
       ? Number(selectedExistingPackage?.remaining_file_count || 0)
       : selectedPackage.fileCount;
+  const pricePerFile = selectedService.pricePerFile;
   const total = useMemo(() => {
     if (mode === 'existing') return 0;
-    return PRICE_PER_FILE * selectedPackage.fileCount;
-  }, [mode, selectedPackage.fileCount]);
+    return pricePerFile * selectedPackage.fileCount;
+  }, [mode, pricePerFile, selectedPackage.fileCount]);
   const canUseSelectedCount = files.length > 0 && files.length <= maxFileCount;
 
   useEffect(() => {
@@ -139,7 +155,7 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
     }
 
     const body = new FormData();
-    body.append('service_type', 'ai_similarity');
+    body.append('service_type', serviceType);
     if (mode === 'existing') {
       body.append('package_id', String(selectedExistingPackageId));
     } else {
@@ -223,9 +239,34 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
 
         <aside className="submit-side">
           <div>
-            <h2>Select Package</h2>
+            <h2>Check type</h2>
+          </div>
+          <div className="service-type-list">
+            {SERVICE_TYPES.map((s) => (
+              <label
+                key={s.value}
+                className={`service-type-row ${serviceType === s.value ? 'selected' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="service_type"
+                  value={s.value}
+                  checked={serviceType === s.value}
+                  onChange={() => setServiceType(s.value)}
+                />
+                <div className="service-type-info">
+                  <span>{s.label}</span>
+                  <small>{s.description}</small>
+                </div>
+                <strong>{formatLkr(s.pricePerFile)}<span className="per-file">/file</span></strong>
+              </label>
+            ))}
+          </div>
+
+          <div>
+            <h2>Package</h2>
             <span className="muted-label">
-              {mode === 'existing' ? 'Use remaining file credits' : `${formatLkr(PRICE_PER_FILE)} per file`}
+              {mode === 'existing' ? 'Use remaining file credits' : `${formatLkr(pricePerFile)} per file`}
             </span>
           </div>
 
@@ -282,7 +323,7 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
                     onChange={() => setSelectedPackage(item)}
                   />
                   <span>{item.label}</span>
-                  <strong>{formatLkr(PRICE_PER_FILE * item.fileCount)}</strong>
+                  <strong>{formatLkr(pricePerFile * item.fileCount)}</strong>
                 </label>
               ))}
             </div>
@@ -296,10 +337,10 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
 
           <button className="primary-button submit-order-button" type="submit" disabled={submitting}>
             {submitting
-              ? (mode === 'existing' ? 'Submitting...' : 'Uploading files...')
+              ? 'Submitting...'
               : mode === 'existing'
                 ? 'Submit using balance'
-                : 'Upload & pay with PayHere'}
+                : 'Submit order'}
           </button>
           <FormMessage type={messageType}>{message}</FormMessage>
           <FormMessage type="warning">{warning}</FormMessage>

@@ -90,6 +90,14 @@ export default function Login({ expectedRole }) {
 
         <div className="auth-links">
           {expectedRole === 'customer' ? <Link to="/register">Create customer account</Link> : null}
+          {expectedRole === 'customer' ? (
+            <span className="auth-forgot">
+              Forgot password?{' '}
+              <a href="https://wa.me/94000000000" target="_blank" rel="noreferrer">
+                Contact support on WhatsApp
+              </a>
+            </span>
+          ) : null}
         </div>
       </section>
     </div>
