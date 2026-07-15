@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
+const crypto = require('crypto');
 const {
   ActivityLog,
   Order,
@@ -8,6 +9,7 @@ const {
   Notification,
   ReportFile,
   StaffEarning,
+  TempLink,
   User,
   WholesalerPaymentBatch
 } = require('../models');
@@ -1065,6 +1067,64 @@ const adminMarkOrderPaid = asyncHandler(async (req, res) => {
   res.json({ order: plain(order) });
 });
 
+const tempLinkCreateSchema = z.object({
+  file_slots: z.coerce.number().int().min(1).max(10),
+  service_type: z.enum(['similarity_only', 'ai_similarity']),
+  note: z.string().trim().max(200).optional()
+});
+
+const createTempLink = asyncHandler(async (req, res) => {
+  const payload = tempLinkCreateSchema.parse(req.body);
+  const token = crypto.randomBytes(5).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  const link = await TempLink.create({
+    token,
+    file_slots: payload.file_slots,
+    service_type: payload.service_type,
+    note: payload.note,
+    created_by_admin_id: req.user.id,
+    expires_at: expiresAt
+  });
+
+  res.status(201).json({ link: { id: link.id, token: link.token, file_slots: link.file_slots, service_type: link.service_type, note: link.note, status: link.status, expires_at: link.expires_at, created_at: link.created_at } });
+});
+
+const listTempLinks = asyncHandler(async (req, res) => {
+  const links = await TempLink.find().sort({ created_at: -1 }).limit(100);
+  const rows = await Promise.all(
+    links.map(async (link) => {
+      const row = {
+        id: link.id,
+        token: link.token,
+        file_slots: link.file_slots,
+        service_type: link.service_type,
+        note: link.note,
+        status: link.status,
+        expires_at: link.expires_at,
+        created_at: link.created_at
+      };
+      if (link.order_id) {
+        const order = await Order.findById(link.order_id).select('order_number order_status');
+        if (order) {
+          row.order_number = order.order_number;
+          row.order_status = order.order_status;
+        }
+      }
+      return row;
+    })
+  );
+  res.json({ links: rows });
+});
+
+const revokeTempLink = asyncHandler(async (req, res) => {
+  const link = await TempLink.findOne({ token: req.params.token });
+  if (!link) throw new HttpError(404, 'Link not found.');
+  link.status = 'revoked';
+  await link.save();
+  res.json({ ok: true });
+});
+
 module.exports = {
   activityLogs,
   addCustomerCredits,
@@ -1074,6 +1134,7 @@ module.exports = {
   clearStaffData,
   clearWholesalerData,
   createStaff,
+  createTempLink,
   createWholesaler,
   clearWholesalerPayment,
   dashboard,
@@ -1082,9 +1143,11 @@ module.exports = {
   listCustomers,
   listOrders,
   listStaff,
+  listTempLinks,
   listWholesalers,
   restoreWholesaler,
   revenueSummary,
+  revokeTempLink,
   staffEarnings,
   updateCustomerStatus,
   updateStaff,

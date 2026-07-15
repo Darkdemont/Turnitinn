@@ -12,10 +12,7 @@ export default function StaffOrderDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [reportUploads, setReportUploads] = useState({
-    similarity: null,
-    ai: null
-  });
+  const [reportUploads, setReportUploads] = useState([]);
   const [reportMeta, setReportMeta] = useState({
     similarity_score: '',
     ai_score: ''
@@ -35,11 +32,14 @@ export default function StaffOrderDetails() {
   }, [id]);
 
   useEffect(() => {
-    if (data?.order?.ai_skipped) {
-      setAiSkipped(true);
-      setAiSkipReason(data.order.ai_skip_reason || '');
+    if (data?.order) {
+      setReportUploads(Array.from({ length: data.order.file_count }, () => ({ similarity: null, ai: null })));
+      if (data.order.ai_skipped) {
+        setAiSkipped(true);
+        setAiSkipReason(data.order.ai_skip_reason || '');
+      }
     }
-  }, [data?.order?.ai_skipped, data?.order?.ai_skip_reason]);
+  }, [data?.order?.file_count, data?.order?.ai_skipped, data?.order?.ai_skip_reason]);
 
   async function acceptOrder() {
     setBusy(true);
@@ -100,43 +100,46 @@ export default function StaffOrderDetails() {
     }
   }
 
+  function updateUpload(fileIndex, type, file) {
+    setReportUploads((prev) => prev.map((item, i) => i === fileIndex ? { ...item, [type]: file } : item));
+  }
+
   async function uploadReport(event) {
     event.preventDefault();
-    if (!reportUploads.similarity) {
-      setMessage('Select the similarity report file before uploading.');
-      return;
-    }
-    if (!aiSkipped && !reportUploads.ai) {
-      setMessage('Select both report files before uploading.');
-      return;
-    }
     if (aiSkipped && !aiSkipReason.trim()) {
       setMessage('Add a reason why the AI report is not applicable.');
       return;
     }
+    for (let i = 0; i < reportUploads.length; i++) {
+      const slot = reportUploads[i];
+      const label = reportUploads.length > 1 ? ` for file ${i + 1}` : '';
+      if (!slot.similarity) {
+        setMessage(`Select the similarity report${label} before uploading.`);
+        return;
+      }
+      if (!aiSkipped && order.service_type === 'ai_similarity' && !slot.ai) {
+        setMessage(`Select the AI report${label} before uploading.`);
+        return;
+      }
+    }
     setBusy(true);
     setMessage('');
     const body = new FormData();
-    body.append('reports', reportUploads.similarity);
-    if (!aiSkipped) {
-      body.append('reports', reportUploads.ai);
+    for (const slot of reportUploads) {
+      body.append('reports', slot.similarity);
+      if (!aiSkipped && order.service_type === 'ai_similarity') {
+        body.append('reports', slot.ai);
+      }
     }
-    if (reportMeta.similarity_score !== '') {
-      body.append('similarity_score', reportMeta.similarity_score);
-    }
-    if (!aiSkipped && reportMeta.ai_score !== '') {
-      body.append('ai_score', reportMeta.ai_score);
-    }
+    if (reportMeta.similarity_score !== '') body.append('similarity_score', reportMeta.similarity_score);
+    if (!aiSkipped && reportMeta.ai_score !== '') body.append('ai_score', reportMeta.ai_score);
     if (aiSkipped) {
       body.append('ai_skipped', 'true');
       body.append('ai_skip_reason', aiSkipReason.trim());
     }
     try {
-      await apiRequest(`/staff/orders/${id}/reports`, {
-        method: 'POST',
-        body
-      });
-      setReportUploads({ similarity: null, ai: null });
+      await apiRequest(`/staff/orders/${id}/reports`, { method: 'POST', body });
+      setReportUploads(Array.from({ length: order.file_count }, () => ({ similarity: null, ai: null })));
       setReportMeta({ similarity_score: '', ai_score: '' });
       setAiSkipped(false);
       setAiSkipReason('');
@@ -272,54 +275,61 @@ export default function StaffOrderDetails() {
       {!isAvailable && !isCompleted ? (
         <section className="panel action-panel">
           <form className="form-stack" onSubmit={uploadReport}>
-            <div className="panel-header">
-              <h2>Upload checked reports</h2>
-              <span className="muted-label">{reports.length}/{aiSkipped || order.ai_skipped ? 1 : 2} uploaded</span>
-            </div>
-            <div className="report-upload-grid">
-              <label>
-                Similarity report
+            {(() => {
+              const reportsPerFile = order.service_type === 'ai_similarity' && !order.ai_skipped ? 2 : 1;
+              const totalRequired = order.file_count * reportsPerFile;
+              return (
+                <div className="panel-header">
+                  <h2>Upload checked reports</h2>
+                  <span className="muted-label">{reports.length}/{totalRequired} uploaded</span>
+                </div>
+              );
+            })()}
+
+            {reportUploads.map((slot, i) => (
+              <div key={i} className="report-file-group">
+                {order.file_count > 1 && (
+                  <div className="report-file-label">File {i + 1}</div>
+                )}
+                <div className="report-upload-grid">
+                  <label>
+                    {order.file_count > 1 ? `Similarity report ${i + 1}` : 'Similarity report'}
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt,.zip"
+                      onChange={(e) => updateUpload(i, 'similarity', e.target.files?.[0] || null)}
+                    />
+                  </label>
+                  {!aiSkipped && order.service_type === 'ai_similarity' ? (
+                    <label>
+                      {order.file_count > 1 ? `AI report ${i + 1}` : 'AI report'}
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.zip"
+                        onChange={(e) => updateUpload(i, 'ai', e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+
+            {order.service_type === 'ai_similarity' ? (
+              <label className="checkbox-row">
                 <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt,.zip"
-                  onChange={(event) =>
-                    setReportUploads({
-                      ...reportUploads,
-                      similarity: event.target.files?.[0] || null
-                    })
-                  }
-                />
-              </label>
-              {!aiSkipped ? (
-                <label>
-                  AI report
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt,.zip"
-                    onChange={(event) =>
-                      setReportUploads({
-                        ...reportUploads,
-                        ai: event.target.files?.[0] || null
-                      })
+                  type="checkbox"
+                  checked={aiSkipped}
+                  onChange={(event) => {
+                    setAiSkipped(event.target.checked);
+                    if (event.target.checked) {
+                      setReportUploads((prev) => prev.map((s) => ({ ...s, ai: null })));
+                      setReportMeta((current) => ({ ...current, ai_score: '' }));
                     }
-                  />
-                </label>
-              ) : null}
-            </div>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={aiSkipped}
-                onChange={(event) => {
-                  setAiSkipped(event.target.checked);
-                  if (event.target.checked) {
-                    setReportUploads((current) => ({ ...current, ai: null }));
-                    setReportMeta((current) => ({ ...current, ai_score: '' }));
-                  }
-                }}
-              />
-              AI report not applicable (document word count exceeds the AI tool's limit)
-            </label>
+                  }}
+                />
+                AI report not applicable (document word count exceeds the AI tool's limit)
+              </label>
+            ) : null}
             {aiSkipped ? (
               <label>
                 Reason AI report is not applicable (shown to the customer/wholesaler)
@@ -336,35 +346,19 @@ export default function StaffOrderDetails() {
               <label>
                 Similarity %
                 <input
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  type="number"
+                  min="0" max="100" step="0.1" type="number"
                   value={reportMeta.similarity_score}
-                  onChange={(event) =>
-                    setReportMeta({
-                      ...reportMeta,
-                      similarity_score: event.target.value
-                    })
-                  }
+                  onChange={(e) => setReportMeta({ ...reportMeta, similarity_score: e.target.value })}
                   placeholder="Optional"
                 />
               </label>
-              {!aiSkipped ? (
+              {!aiSkipped && order.service_type === 'ai_similarity' ? (
                 <label>
                   AI %
                   <input
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    type="number"
+                    min="0" max="100" step="0.1" type="number"
                     value={reportMeta.ai_score}
-                    onChange={(event) =>
-                      setReportMeta({
-                        ...reportMeta,
-                        ai_score: event.target.value
-                      })
-                    }
+                    onChange={(e) => setReportMeta({ ...reportMeta, ai_score: e.target.value })}
                     placeholder="Optional"
                   />
                 </label>
@@ -379,7 +373,7 @@ export default function StaffOrderDetails() {
                 className="secondary-button"
                 type="button"
                 onClick={completeOrder}
-                disabled={busy || reports.length < (order.ai_skipped ? 1 : 2)}
+                disabled={busy || reports.length < order.file_count * (order.ai_skipped || order.service_type === 'similarity_only' ? 1 : 2)}
               >
                 <CheckCircle2 size={18} aria-hidden="true" />
                 Mark completed

@@ -5,8 +5,9 @@ const orderSchema = new Schema(
   {
     order_number: { type: String, required: true, unique: true },
     customer_package_id: { type: Types.ObjectId, ref: 'CustomerPackage' },
-    customer_id: { type: Types.ObjectId, ref: 'User', required: true },
-    account_type: { type: String, enum: ['customer', 'wholesaler'], default: 'customer' },
+    customer_id: { type: Types.ObjectId, ref: 'User' },
+    account_type: { type: String, enum: ['customer', 'wholesaler', 'guest'], default: 'customer' },
+    temp_link_id: { type: Types.ObjectId, ref: 'TempLink' },
     service_type: { type: String, enum: ['similarity_only', 'ai_similarity'], required: true },
     file_count: { type: Number, required: true, min: 1 },
     price_per_file_lkr: { type: Number, required: true },

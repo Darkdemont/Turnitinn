@@ -10,6 +10,7 @@ const staffRoutes = require('./routes/staff.routes');
 const adminRoutes = require('./routes/admin.routes');
 const downloadRoutes = require('./routes/download.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const guestRoutes = require('./routes/guest.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const wholesalerRoutes = require('./routes/wholesaler.routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -38,6 +39,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/wholesaler', wholesalerRoutes);
 app.use('/api/download', downloadRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/guest', guestRoutes);
 app.use('/api/payment', paymentRoutes);
 
 if (env.nodeEnv === 'production') {

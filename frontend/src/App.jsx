@@ -9,6 +9,7 @@ import AdminActivityLogs from './pages/admin/ActivityLogs';
 import AdminCustomerDetail from './pages/admin/CustomerDetail';
 import AdminCustomers from './pages/admin/Customers';
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminTempLinks from './pages/admin/TempLinks';
 import AdminOrderDetails from './pages/admin/OrderDetails';
 import AdminOrders from './pages/admin/Orders';
 import AdminRevenue from './pages/admin/Revenue';
@@ -16,6 +17,7 @@ import AdminStaff from './pages/admin/Staff';
 import AdminStaffEarnings from './pages/admin/StaffEarnings';
 import AdminStorage from './pages/admin/Storage';
 import AdminWholesalers from './pages/admin/Wholesalers';
+import GuestOrder from './pages/GuestOrder';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerMyOrders from './pages/customer/MyOrders';
 import CustomerNewOrder from './pages/customer/NewOrder';
@@ -52,6 +54,7 @@ export default function App() {
 
       <Route path="/customer/payment/return" element={<PaymentReturn />} />
       <Route path="/customer/payment/cancel" element={<PaymentCancel />} />
+      <Route path="/g/:token" element={<GuestOrder />} />
 
       <Route element={<ProtectedRoute role="customer" />}>
         <Route element={<Layout />}>
@@ -95,6 +98,7 @@ export default function App() {
           <Route path="/admin/revenue" element={<AdminRevenue />} />
           <Route path="/admin/storage" element={<AdminStorage />} />
           <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
+          <Route path="/admin/temp-links" element={<AdminTempLinks />} />
         </Route>
       </Route>
 

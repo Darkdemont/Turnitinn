@@ -5,6 +5,7 @@ const {
   OrderFile,
   ReportFile,
   StaffEarning,
+  TempLink,
   User
 } = require('../models');
 const { STAFF_RATE_PER_FILE_USD } = require('../constants/pricing');
@@ -231,14 +232,16 @@ const acceptOrder = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  await notifyUser({
-    userId: order.customer_id,
-    orderId: order.id,
-    type: 'order_accepted',
-    title: 'Order accepted',
-    message: `${order.order_number} has been accepted and will be checked soon.`,
-    linkPath: ownerOrderPath(order)
-  });
+  if (order.customer_id) {
+    await notifyUser({
+      userId: order.customer_id,
+      orderId: order.id,
+      type: 'order_accepted',
+      title: 'Order accepted',
+      message: `${order.order_number} has been accepted and will be checked soon.`,
+      linkPath: ownerOrderPath(order)
+    });
+  }
 
   res.json({ order: plain(order) });
 });
@@ -303,14 +306,16 @@ const releaseOrder = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  await notifyUser({
-    userId: order.customer_id,
-    orderId: order.id,
-    type: 'order_released',
-    title: 'Order returned to queue',
-    message: `${order.order_number} was returned to the staff queue and will be accepted again soon.`,
-    linkPath: ownerOrderPath(order)
-  });
+  if (order.customer_id) {
+    await notifyUser({
+      userId: order.customer_id,
+      orderId: order.id,
+      type: 'order_released',
+      title: 'Order returned to queue',
+      message: `${order.order_number} was returned to the staff queue and will be accepted again soon.`,
+      linkPath: ownerOrderPath(order)
+    });
+  }
 
   res.json({ order: plain(order) });
 });
@@ -368,17 +373,26 @@ const uploadReport = asyncHandler(async (req, res) => {
     }
 
     const aiSkipped = order.service_type === 'ai_similarity' && payload.ai_skipped === true;
-    if (order.service_type === 'ai_similarity') {
-      if (aiSkipped) {
-        if (uploadedFiles.length !== 1) {
-          throw new HttpError(400, 'Upload only the similarity report file when marking the AI report as not applicable.');
-        }
-        if (!payload.ai_skip_reason) {
-          throw new HttpError(400, 'Add a short reason why the AI report is not applicable (e.g. word count exceeds the AI tool limit).');
-        }
-      } else if (uploadedFiles.length !== REQUIRED_REPORT_FILE_COUNT) {
-        throw new HttpError(400, 'Upload both report files: similarity report and AI report.');
-      }
+    const reportsPerFile = order.service_type === 'similarity_only' || aiSkipped ? 1 : 2;
+    const expectedCount = order.file_count * reportsPerFile;
+
+    if (aiSkipped && !payload.ai_skip_reason) {
+      throw new HttpError(400, 'Add a short reason why the AI report is not applicable (e.g. word count exceeds the AI tool limit).');
+    }
+    if (uploadedFiles.length !== expectedCount) {
+      const label = reportsPerFile === 2 ? 'similarity + AI report' : 'similarity report';
+      throw new HttpError(
+        400,
+        order.file_count > 1
+          ? `Upload ${reportsPerFile} file${reportsPerFile > 1 ? 's' : ''} per assignment (${label}) — ${expectedCount} total for ${order.file_count} files.`
+          : `Upload ${expectedCount} report file${expectedCount > 1 ? 's' : ''} (${label}).`
+      );
+    }
+
+    const reportTypes = [];
+    for (let i = 0; i < order.file_count; i++) {
+      reportTypes.push('similarity');
+      if (reportsPerFile === 2) reportTypes.push('ai');
     }
 
     const storedFiles = await storeUploadedFiles(order.order_number, uploadedFiles, 'reports');
@@ -387,7 +401,7 @@ const uploadReport = asyncHandler(async (req, res) => {
       storedFiles.map((file, index) => ({
         order_id: order._id,
         uploaded_by_staff_id: req.user.id,
-        report_type: REPORT_TYPES[index] || 'other',
+        report_type: reportTypes[index] || 'other',
         ...file,
         expires_at: expiresAt
       }))
@@ -414,14 +428,16 @@ const uploadReport = asyncHandler(async (req, res) => {
       ipAddress: req.ip
     });
 
-    await notifyUser({
-      userId: order.customer_id,
-    orderId: order.id,
-    type: 'report_uploaded',
-    title: 'Reports uploaded',
-    message: `Reports for ${order.order_number} have been uploaded and are ready to review.`,
-    linkPath: ownerOrderPath(order)
-  });
+    if (order.customer_id) {
+      await notifyUser({
+        userId: order.customer_id,
+        orderId: order.id,
+        type: 'report_uploaded',
+        title: 'Reports uploaded',
+        message: `Reports for ${order.order_number} have been uploaded and are ready to review.`,
+        linkPath: ownerOrderPath(order)
+      });
+    }
 
     res.status(201).json({ order: plain(order), reports: storedFiles });
   } catch (error) {
@@ -445,14 +461,17 @@ const markCompleted = asyncHandler(async (req, res) => {
   }
 
   const needsBothReports = order.service_type === 'ai_similarity' && !order.ai_skipped;
-  const requiredReportCount = needsBothReports ? REQUIRED_REPORT_FILE_COUNT : 1;
+  const reportsPerFile = needsBothReports ? 2 : 1;
+  const requiredReportCount = order.file_count * reportsPerFile;
   const reportCount = await ReportFile.countDocuments({ order_id: order._id });
   if (reportCount < requiredReportCount) {
     throw new HttpError(
       400,
-      needsBothReports
-        ? 'Upload both report files before marking the order completed.'
-        : 'Upload the similarity report before marking the order completed.'
+      order.file_count > 1
+        ? `Upload all ${requiredReportCount} report files (${reportsPerFile} per assignment file) before completing this order.`
+        : needsBothReports
+          ? 'Upload both report files before marking the order completed.'
+          : 'Upload the similarity report before marking the order completed.'
     );
   }
 
@@ -484,14 +503,20 @@ const markCompleted = asyncHandler(async (req, res) => {
     ipAddress: req.ip
   });
 
-  await notifyUser({
-    userId: order.customer_id,
-    orderId: order.id,
-    type: 'order_completed',
-    title: 'Report checking completed',
-    message: `${order.order_number} is complete. You can download your final reports now.`,
-    linkPath: ownerOrderPath(order)
-  });
+  if (order.account_type === 'guest' && order.temp_link_id) {
+    await TempLink.findByIdAndUpdate(order.temp_link_id, { status: 'completed' });
+  }
+
+  if (order.customer_id) {
+    await notifyUser({
+      userId: order.customer_id,
+      orderId: order.id,
+      type: 'order_completed',
+      title: 'Report checking completed',
+      message: `${order.order_number} is complete. You can download your final reports now.`,
+      linkPath: ownerOrderPath(order)
+    });
+  }
 
   res.json({ order: plain(order) });
 });

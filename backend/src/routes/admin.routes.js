@@ -8,6 +8,7 @@ const {
   clearStaffData,
   clearWholesalerData,
   createStaff,
+  createTempLink,
   createWholesaler,
   clearWholesalerPayment,
   dashboard,
@@ -16,9 +17,11 @@ const {
   listCustomers,
   listOrders,
   listStaff,
+  listTempLinks,
   listWholesalers,
   restoreWholesaler,
   revenueSummary,
+  revokeTempLink,
   staffEarnings,
   updateCustomerStatus,
   updateStaff,
@@ -69,5 +72,8 @@ router.get('/revenue-summary', revenueSummary);
 router.get('/activity-logs', activityLogs);
 router.get('/storage', storageSummary);
 router.post('/storage/cleanup', cleanupStorage);
+router.get('/temp-links', listTempLinks);
+router.post('/temp-links', createTempLink);
+router.post('/temp-links/:token/revoke', revokeTempLink);
 
 module.exports = router;

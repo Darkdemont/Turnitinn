@@ -7,6 +7,7 @@ module.exports = {
   OrderFile: require('./OrderFile'),
   ReportFile: require('./ReportFile'),
   StaffEarning: require('./StaffEarning'),
+  TempLink: require('./TempLink'),
   User: require('./User'),
   WholesalerPaymentBatch: require('./WholesalerPaymentBatch')
 };
