@@ -3133,3 +3133,49 @@ td {
     justify-content: center;
   }
 }
+
+/* ── Customer link banner (admin) ── */
+.customer-link-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.customer-link-icon {
+  color: var(--cyan);
+  flex-shrink: 0;
+}
+
+.customer-link-label {
+  font-size: 0.82rem;
+  color: var(--cyan);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.customer-link-url {
+  font-family: 'Courier New', monospace;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 3px 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .customer-link-banner { flex-direction: column; align-items: flex-start; }
+  .customer-link-url { width: 100%; }
+}

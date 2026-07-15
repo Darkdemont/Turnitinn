@@ -1,3 +1,4 @@
+import { Copy, Link2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
@@ -7,6 +8,31 @@ import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { formatDate, formatLkr } from '../../utils/format';
+
+const customerLink = `${window.location.origin}/register`;
+
+function CustomerLinkBanner() {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(customerLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="customer-link-banner">
+      <Link2 size={18} className="customer-link-icon" aria-hidden="true" />
+      <span className="customer-link-label">Customer registration link</span>
+      <span className="customer-link-url">{customerLink}</span>
+      <button className="ghost-button small-inline" onClick={handleCopy} type="button">
+        <Copy size={14} aria-hidden="true" />
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminCustomers() {
   const [customers, setCustomers] = useState(null);
@@ -48,6 +74,7 @@ export default function AdminCustomers() {
   return (
     <>
       <PageHeader title="Customers" eyebrow="accounts" />
+      <CustomerLinkBanner />
       <FormMessage type={isError ? 'error' : 'success'}>{message}</FormMessage>
       <section className="panel">
         {error ? <EmptyState title="Could not load customers" text={error} /> : null}
