@@ -1,6 +1,8 @@
 const express = require('express');
 const {
   activityLogs,
+  addCustomerCredits,
+  adminMarkOrderPaid,
   archiveWholesaler,
   clearCustomerData,
   clearStaffData,
@@ -9,6 +11,7 @@ const {
   createWholesaler,
   clearWholesalerPayment,
   dashboard,
+  getCustomerDetail,
   getOrderDetails,
   listCustomers,
   listOrders,
@@ -17,6 +20,7 @@ const {
   restoreWholesaler,
   revenueSummary,
   staffEarnings,
+  updateCustomerStatus,
   updateStaff,
   updateStaffStatus,
   updateWholesaler,
@@ -42,6 +46,10 @@ router.post('/accounting/staff/:id/mark-paid', markStaffPaid);
 router.get('/orders', listOrders);
 router.get('/orders/:id', getOrderDetails);
 router.get('/customers', listCustomers);
+router.get('/customers/:id', getCustomerDetail);
+router.patch('/customers/:id/status', updateCustomerStatus);
+router.post('/customers/:id/add-credits', addCustomerCredits);
+router.post('/customers/:id/orders/:orderId/mark-paid', adminMarkOrderPaid);
 router.post('/customers/:id/clear-data', clearCustomerData);
 router.get('/staff', listStaff);
 router.post('/staff', createStaff);

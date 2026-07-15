@@ -43,7 +43,7 @@ export default function CustomerMyOrders() {
   async function cancelOrder(orderId) {
     setMessage('');
     try {
-      await apiRequest(`/customer/orders/${orderId}/cancel`, { method: 'PATCH' });
+      await apiRequest(`/customer/orders/${orderId}/cancel`, { method: 'POST' });
       await loadOrders();
       setMessage('Order cancelled. Your file credit is available again.');
     } catch (err) {
@@ -75,8 +75,8 @@ export default function CustomerMyOrders() {
         {orders && !orders.length ? (
           <EmptyState
             title="No orders yet"
-            text="New testing orders are marked paid automatically in Phase 1."
-            action={<Link className="primary-button" to="/customer/new-order">Create order</Link>}
+            text="Upload your first assignment from the dashboard to get started."
+            action={<Link className="primary-button" to="/customer/dashboard">Go to dashboard</Link>}
           />
         ) : null}
       </section>

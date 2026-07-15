@@ -10,6 +10,7 @@ import {
   PlusCircle,
   Receipt,
   ScrollText,
+  User,
   Users
 } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -19,8 +20,8 @@ import NotificationBell from './NotificationBell';
 const navItems = {
   customer: [
     { label: 'Dashboard', path: '/customer/dashboard', icon: LayoutDashboard },
-    { label: 'New Order', path: '/customer/new-order', icon: PlusCircle },
-    { label: 'My Orders', path: '/customer/orders', icon: ClipboardList }
+    { label: 'My Orders', path: '/customer/orders', icon: ClipboardList },
+    { label: 'Profile', path: '/customer/profile', icon: User }
   ],
   wholesaler: [
     { label: 'Dashboard', path: '/wholesaler/dashboard', icon: LayoutDashboard },
@@ -71,7 +72,7 @@ export default function Layout() {
           <div className="brand-mark">T</div>
           <div>
             <strong>Turnit</strong>
-            <span>Phase 1</span>
+            <span>Assignment checking</span>
           </div>
         </div>
 

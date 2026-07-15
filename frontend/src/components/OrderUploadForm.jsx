@@ -1,5 +1,5 @@
 import { UploadCloud } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../api/client';
 import { formatBytes, formatLkr } from '../utils/format';
 import FormMessage from './FormMessage';
@@ -104,6 +104,26 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
     setFileInputKey((key) => key + 1);
   }
 
+  const payhereFormRef = useRef(null);
+
+  function submitToPayhere(payhereData) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payhereData.checkout_url;
+    form.style.display = 'none';
+
+    Object.entries(payhereData.fields).forEach(([key, val]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = val;
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setMessage('');
@@ -133,6 +153,14 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
         method: 'POST',
         body
       });
+
+      if (data.payment_required && data.payhere) {
+        setMessageType('success');
+        setMessage('Redirecting to payment...');
+        setTimeout(() => submitToPayhere(data.payhere), 400);
+        return;
+      }
+
       setFiles([]);
       setFileInputKey((key) => key + 1);
       setMessageType('success');
@@ -267,7 +295,11 @@ export default function OrderUploadForm({ availablePackages = [], onSubmitted })
           </div>
 
           <button className="primary-button submit-order-button" type="submit" disabled={submitting}>
-            {submitting ? 'Submitting...' : mode === 'existing' ? 'Submit using balance' : 'Buy package & submit'}
+            {submitting
+              ? (mode === 'existing' ? 'Submitting...' : 'Uploading files...')
+              : mode === 'existing'
+                ? 'Submit using balance'
+                : 'Upload & pay with PayHere'}
           </button>
           <FormMessage type={messageType}>{message}</FormMessage>
           <FormMessage type="warning">{warning}</FormMessage>

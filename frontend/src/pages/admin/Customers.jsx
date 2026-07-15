@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiRequest } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
@@ -69,7 +70,9 @@ export default function AdminCustomers() {
               <tbody>
                 {customers.map((customer) => (
                   <tr key={customer.id}>
-                    <td>{customer.name}</td>
+                    <td>
+                      <Link className="text-link" to={`/admin/customers/${customer.id}`}>{customer.name}</Link>
+                    </td>
                     <td>{customer.email}</td>
                     <td>{customer.phone || '-'}</td>
                     <td><StatusBadge value={customer.status} /></td>
@@ -77,6 +80,9 @@ export default function AdminCustomers() {
                     <td>{formatLkr(customer.total_spend_lkr)}</td>
                     <td>{formatDate(customer.created_at)}</td>
                     <td className="button-row compact">
+                      <Link className="secondary-button small-inline" to={`/admin/customers/${customer.id}`}>
+                        Manage
+                      </Link>
                       <button
                         className="ghost-button small-inline danger"
                         disabled={busyId === customer.id || !Number(customer.order_count || 0)}

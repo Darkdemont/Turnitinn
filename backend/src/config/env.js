@@ -40,5 +40,8 @@ module.exports = {
   defaultPhoneCountryCode: process.env.DEFAULT_PHONE_COUNTRY_CODE || '+94',
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
-  twilioWhatsappFrom: process.env.TWILIO_WHATSAPP_FROM || ''
+  twilioWhatsappFrom: process.env.TWILIO_WHATSAPP_FROM || '',
+  payheremerchantId: process.env.PAYHERE_MERCHANT_ID || '',
+  payhereMerchantSecret: process.env.PAYHERE_MERCHANT_SECRET || '',
+  payhereSandbox: process.env.PAYHERE_SANDBOX !== 'false'
 };

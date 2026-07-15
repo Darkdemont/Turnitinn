@@ -931,8 +931,144 @@ const activityLogs = asyncHandler(async (req, res) => {
   res.json({ activity_logs: rows });
 });
 
+const getCustomerDetail = asyncHandler(async (req, res) => {
+  const customerId = parseObjectId(req.params.id);
+  const customer = await User.findOne({ _id: customerId, role: 'customer' });
+  if (!customer) throw new HttpError(404, 'Customer not found.');
+
+  const [orders, packages, stats] = await Promise.all([
+    Order.find({ customer_id: customerId }).sort({ created_at: -1 }).limit(50),
+    CustomerPackage.find({ customer_id: customerId }).sort({ created_at: -1 }).limit(20),
+    Order.aggregate([
+      { $match: { customer_id: customerId } },
+      {
+        $group: {
+          _id: null,
+          total_orders: { $sum: 1 },
+          completed_orders: { $sum: { $cond: [{ $eq: ['$order_status', 'completed'] }, 1, 0] } },
+          in_progress_orders: {
+            $sum: { $cond: [{ $in: ['$order_status', ['accepted', 'checking', 'report_uploaded']] }, 1, 0] }
+          },
+          total_spend_lkr: { $sum: '$total_amount_lkr' }
+        }
+      }
+    ])
+  ]);
+
+  res.json({
+    customer: accountPlain(customer),
+    stats: stats[0] || { total_orders: 0, completed_orders: 0, in_progress_orders: 0, total_spend_lkr: 0 },
+    orders: plainMany(orders),
+    packages: plainMany(packages)
+  });
+});
+
+const updateCustomerStatus = asyncHandler(async (req, res) => {
+  const { status } = req.body || {};
+  if (!['active', 'inactive'].includes(status)) {
+    throw new HttpError(400, 'Status must be active or inactive.');
+  }
+
+  const customerId = parseObjectId(req.params.id);
+  const customer = await User.findOneAndUpdate(
+    { _id: customerId, role: 'customer' },
+    { status },
+    { new: true }
+  );
+  if (!customer) throw new HttpError(404, 'Customer not found.');
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'customer_status_updated',
+    description: `${req.user.email} set customer ${customer.email} to ${status}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ customer: accountPlain(customer) });
+});
+
+const addCustomerCredits = asyncHandler(async (req, res) => {
+  const { file_count, note } = req.body || {};
+  const count = Number(file_count);
+  if (!Number.isInteger(count) || count < 1 || count > 100) {
+    throw new HttpError(400, 'file_count must be an integer between 1 and 100.');
+  }
+
+  const customerId = parseObjectId(req.params.id);
+  const customer = await User.findOne({ _id: customerId, role: 'customer' });
+  if (!customer) throw new HttpError(404, 'Customer not found.');
+
+  const { generatePackageNumber } = require('../utils/packageNumber');
+  const packageNumber = await generatePackageNumber();
+  const pkg = await CustomerPackage.create({
+    package_number: packageNumber,
+    customer_id: customerId,
+    service_type: 'ai_similarity',
+    package_file_count: count,
+    used_file_count: 0,
+    price_per_file_lkr: 0,
+    total_amount_lkr: 0,
+    payment_status: 'paid',
+    status: 'active'
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    action: 'customer_credits_added',
+    description: `${req.user.email} added ${count} file credit(s) to ${customer.email}${note ? `: ${note}` : ''}.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ package: plain(pkg) });
+});
+
+const adminMarkOrderPaid = asyncHandler(async (req, res) => {
+  const orderId = parseObjectId(req.params.orderId);
+  const customerId = parseObjectId(req.params.id);
+
+  const order = await Order.findOne({ _id: orderId, customer_id: customerId });
+  if (!order) throw new HttpError(404, 'Order not found.');
+  if (order.payment_status === 'paid') throw new HttpError(400, 'Order is already paid.');
+
+  order.payment_status = 'paid';
+  order.order_status = 'available';
+  await order.save();
+
+  if (order.customer_package_id) {
+    const pkg = await CustomerPackage.findById(order.customer_package_id);
+    if (pkg && pkg.payment_status !== 'paid') {
+      pkg.payment_status = 'paid';
+      pkg.used_file_count = (Number(pkg.used_file_count) || 0) + Number(order.file_count || 0);
+      pkg.status = pkg.used_file_count >= pkg.package_file_count ? 'used' : 'active';
+      await pkg.save();
+    }
+  }
+
+  const { notifyRole } = require('../utils/notificationService');
+  await notifyRole({
+    role: 'staff',
+    orderId: order.id,
+    type: 'new_order_available',
+    title: 'New order available',
+    message: `${order.order_number} is ready to accept with ${order.file_count} file(s).`,
+    linkPath: '/staff/available-orders'
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    orderId: order.id,
+    action: 'order_manually_paid',
+    description: `${req.user.email} manually marked ${order.order_number} as paid.`,
+    ipAddress: req.ip
+  });
+
+  res.json({ order: plain(order) });
+});
+
 module.exports = {
   activityLogs,
+  addCustomerCredits,
+  adminMarkOrderPaid,
   archiveWholesaler,
   clearCustomerData,
   clearStaffData,
@@ -941,6 +1077,7 @@ module.exports = {
   createWholesaler,
   clearWholesalerPayment,
   dashboard,
+  getCustomerDetail,
   getOrderDetails,
   listCustomers,
   listOrders,
@@ -949,6 +1086,7 @@ module.exports = {
   restoreWholesaler,
   revenueSummary,
   staffEarnings,
+  updateCustomerStatus,
   updateStaff,
   updateStaffStatus,
   updateWholesaler,
