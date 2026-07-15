@@ -22,7 +22,7 @@ const tempLinkSchema = new Schema(
     created_by_admin_id: { type: Types.ObjectId, ref: 'User', required: true },
     expires_at: { type: Date, required: true }
   },
-  schemaOptions({ createdAt: 'created_at', updatedAt: false })
+  schemaOptions({ createdAt: 'created_at', updatedAt: 'updated_at' })
 );
 
 tempLinkSchema.index({ expires_at: 1 });
