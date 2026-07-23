@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client';
 import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
+import MilestoneBadge from '../../components/MilestoneBadge';
 import OrderUploadForm from '../../components/OrderUploadForm';
 import PageHeader from '../../components/PageHeader';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
@@ -66,6 +67,8 @@ export default function CustomerDashboard() {
         eyebrow="AI + Similarity checking"
         actions={<Link className="ghost-button" to="/customer/orders">All orders</Link>}
       />
+
+      <MilestoneBadge count={data.platform_completed_reports} label="reports completed successfully on Turnit" />
 
       <div className="customer-stats-grid">
         <StatCard icon={<FileText size={20} />} label="Total orders" value={summary.total_orders || 0} />

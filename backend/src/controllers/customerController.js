@@ -12,6 +12,7 @@ const { plain, plainMany, parseObjectId } = require('../utils/mongo');
 const { removeStoredFile, removeTempFiles, resolveStoredFile, storeUploadedFiles } = require('../utils/fileStorage');
 const { analyzeStoredFile } = require('../utils/documentAnalysis');
 const { notifyRole } = require('../utils/notificationService');
+const { getCompletedReportsCount } = require('../utils/platformStats');
 
 const createOrderSchema = z.object({
   service_type: z.literal('ai_similarity').optional().default('ai_similarity'),
@@ -109,7 +110,7 @@ async function customerOrderSummary(order) {
 
 const dashboard = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const [summaryRows, recentDocs, packages] = await Promise.all([
+  const [summaryRows, recentDocs, packages, platformCompletedReports] = await Promise.all([
     Order.aggregate([
       { $match: { customer_id: parseObjectId(userId) } },
       {
@@ -136,7 +137,8 @@ const dashboard = asyncHandler(async (req, res) => {
       payment_status: 'paid',
       status: 'active',
       $expr: { $lt: ['$used_file_count', '$package_file_count'] }
-    }).sort({ created_at: -1 })
+    }).sort({ created_at: -1 }),
+    getCompletedReportsCount()
   ]);
 
   const recent_orders = await Promise.all(recentDocs.map(customerOrderSummary));
@@ -149,6 +151,7 @@ const dashboard = asyncHandler(async (req, res) => {
       completed_orders: 0,
       total_spend_lkr: 0
     },
+    platform_completed_reports: platformCompletedReports,
     recent_orders,
     packages: plainMany(packages).map((row) => ({
       ...row,

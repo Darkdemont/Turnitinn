@@ -8,6 +8,7 @@ const { parseObjectId, plain, plainMany } = require('../utils/mongo');
 const { removeStoredFile, removeTempFiles, resolveStoredFile, storeUploadedFiles } = require('../utils/fileStorage');
 const { analyzeStoredFile } = require('../utils/documentAnalysis');
 const { notifyRole } = require('../utils/notificationService');
+const { getCompletedReportsCount } = require('../utils/platformStats');
 
 function fileExpiryDate() {
   return new Date(Date.now() + env.fileRetentionHours * 60 * 60 * 1000);
@@ -67,7 +68,7 @@ async function unpaidSummary(wholesalerId) {
 
 const dashboard = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const [summaryRows, recentDocs, wholesaler, due] = await Promise.all([
+  const [summaryRows, recentDocs, wholesaler, due, platformCompletedReports] = await Promise.all([
     Order.aggregate([
       {
         $match: {
@@ -97,7 +98,8 @@ const dashboard = asyncHandler(async (req, res) => {
       .sort({ created_at: -1 })
       .limit(8),
     User.findById(userId).select('rate_per_file_lkr'),
-    unpaidSummary(userId)
+    unpaidSummary(userId),
+    getCompletedReportsCount()
   ]);
 
   res.json({
@@ -110,6 +112,7 @@ const dashboard = asyncHandler(async (req, res) => {
       rate_per_file_lkr: wholesaler?.rate_per_file_lkr || 0,
       ...due
     },
+    platform_completed_reports: platformCompletedReports,
     recent_orders: await Promise.all(recentDocs.map(orderSummary))
   });
 });

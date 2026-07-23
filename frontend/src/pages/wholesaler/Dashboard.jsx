@@ -4,6 +4,7 @@ import { apiRequest } from '../../api/client';
 import CustomerOrderList from '../../components/CustomerOrderList';
 import EmptyState from '../../components/EmptyState';
 import FormMessage from '../../components/FormMessage';
+import MilestoneBadge from '../../components/MilestoneBadge';
 import PageHeader from '../../components/PageHeader';
 import WholesalerUploadForm from '../../components/WholesalerUploadForm';
 import { formatLkr } from '../../utils/format';
@@ -71,6 +72,8 @@ export default function WholesalerDashboard() {
         actions={<Link className="ghost-button" to="/wholesaler/orders">My orders</Link>}
       />
       <FormMessage type={message.includes('cancelled') ? 'success' : 'error'}>{message}</FormMessage>
+
+      <MilestoneBadge count={data.platform_completed_reports} label="reports completed successfully on Turnit" />
 
       <section className="wholesaler-summary-strip" aria-label="Account summary">
         <div>
