@@ -35,6 +35,7 @@ export default function MilestoneBadge({
   floor = 1000
 }) {
   const [displayCount, setDisplayCount] = useState(0);
+  const [fillPct, setFillPct] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
   const previousCountRef = useRef(0);
   const rafRef = useRef(null);
@@ -54,6 +55,7 @@ export default function MilestoneBadge({
       const progress = Math.min(1, elapsed / duration);
       const eased = easeOutCubic(progress);
       setDisplayCount(Math.round(startValue + (endValue - startValue) * eased));
+      setFillPct(eased * 100);
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
@@ -132,6 +134,10 @@ export default function MilestoneBadge({
           <span className="milestone-badge__plus">+</span>
         </div>
         <div className="milestone-badge__label">{label}</div>
+
+        <div className="milestone-badge__progress-track">
+          <div className="milestone-badge__progress-fill" style={{ width: `${fillPct}%` }} />
+        </div>
       </div>
     </section>
   );
