@@ -28,17 +28,24 @@ const CONFETTI_PIECES = Array.from({ length: 18 }, (_, i) => ({
   rotate: `${(i * 47) % 360}deg`
 }));
 
-export default function MilestoneBadge({ count, label = 'reports completed successfully', storageKey = 'turnit_milestone_seen' }) {
+export default function MilestoneBadge({
+  count,
+  label = 'reports completed successfully',
+  storageKey = 'turnit_milestone_seen',
+  floor = 1000
+}) {
   const [displayCount, setDisplayCount] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
   const previousCountRef = useRef(0);
   const rafRef = useRef(null);
 
+  const effectiveCount = typeof count === 'number' && !Number.isNaN(count) ? Math.max(count, floor) : null;
+
   useEffect(() => {
-    if (typeof count !== 'number' || Number.isNaN(count)) return undefined;
+    if (effectiveCount === null) return undefined;
 
     const startValue = previousCountRef.current;
-    const endValue = count;
+    const endValue = effectiveCount;
     const startTime = performance.now();
     const duration = 1400;
 
@@ -58,11 +65,11 @@ export default function MilestoneBadge({ count, label = 'reports completed succe
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [count]);
+  }, [effectiveCount]);
 
   useEffect(() => {
-    if (typeof count !== 'number' || Number.isNaN(count)) return;
-    const current = milestoneReached(count);
+    if (effectiveCount === null) return;
+    const current = milestoneReached(effectiveCount);
     if (current === 0) return;
 
     let lastSeen = 0;
@@ -83,9 +90,9 @@ export default function MilestoneBadge({ count, label = 'reports completed succe
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, [count, storageKey]);
+  }, [effectiveCount, storageKey]);
 
-  if (typeof count !== 'number' || Number.isNaN(count) || count <= 0) return null;
+  if (effectiveCount === null || effectiveCount <= 0) return null;
 
   return (
     <section className={`milestone-badge${celebrating ? ' is-celebrating' : ''}`} aria-label="Platform milestone">
