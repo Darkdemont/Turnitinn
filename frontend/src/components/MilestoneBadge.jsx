@@ -7,19 +7,16 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-function milestonesFor(count) {
+function milestoneReached(count) {
   let current = 0;
-  let next = MILESTONES[0];
   for (let i = 0; i < MILESTONES.length; i += 1) {
     if (count >= MILESTONES[i]) {
       current = MILESTONES[i];
-      next = MILESTONES[i + 1] || MILESTONES[i] * 2;
     } else {
-      next = MILESTONES[i];
       break;
     }
   }
-  return { current, next };
+  return current;
 }
 
 const CONFETTI_COLORS = ['#22d3ee', '#fbbf24', '#34d399', '#f97316', '#a78bfa'];
@@ -65,7 +62,7 @@ export default function MilestoneBadge({ count, label = 'reports completed succe
 
   useEffect(() => {
     if (typeof count !== 'number' || Number.isNaN(count)) return;
-    const { current } = milestonesFor(count);
+    const current = milestoneReached(count);
     if (current === 0) return;
 
     let lastSeen = 0;
@@ -89,12 +86,6 @@ export default function MilestoneBadge({ count, label = 'reports completed succe
   }, [count, storageKey]);
 
   if (typeof count !== 'number' || Number.isNaN(count) || count <= 0) return null;
-
-  const { current, next } = milestonesFor(count);
-  const rangeStart = current;
-  const rangeEnd = next;
-  const progressPct = Math.min(100, Math.max(0, ((count - rangeStart) / (rangeEnd - rangeStart)) * 100));
-  const remaining = Math.max(0, rangeEnd - count);
 
   return (
     <section className={`milestone-badge${celebrating ? ' is-celebrating' : ''}`} aria-label="Platform milestone">
@@ -134,15 +125,6 @@ export default function MilestoneBadge({ count, label = 'reports completed succe
           <span className="milestone-badge__plus">+</span>
         </div>
         <div className="milestone-badge__label">{label}</div>
-
-        {rangeEnd > rangeStart ? (
-          <div className="milestone-badge__progress-track" title={`${remaining.toLocaleString()} to go until ${rangeEnd.toLocaleString()}`}>
-            <div className="milestone-badge__progress-fill" style={{ width: `${progressPct}%` }} />
-          </div>
-        ) : null}
-        <div className="milestone-badge__next">
-          {remaining.toLocaleString()} to go until {rangeEnd.toLocaleString()}
-        </div>
       </div>
     </section>
   );

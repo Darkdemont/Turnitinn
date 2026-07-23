@@ -1701,27 +1701,6 @@ td {
   font-size: 0.86rem;
 }
 
-.milestone-badge__progress-track {
-  background: rgba(148, 163, 184, 0.16);
-  border-radius: 999px;
-  height: 6px;
-  margin-top: 6px;
-  overflow: hidden;
-  width: 100%;
-}
-
-.milestone-badge__progress-fill {
-  background: linear-gradient(90deg, #fbbf24, var(--primary));
-  border-radius: 999px;
-  height: 100%;
-  transition: width 900ms var(--ease-soft);
-}
-
-.milestone-badge__next {
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
 .milestone-confetti {
   inset: 0;
   overflow: hidden;
